@@ -56,10 +56,13 @@ class MailNotify(object):
         sub_img = message_filters.Subscriber(
             "~input/image",
             Image, queue_size=100, buff_size=2**24)
+        sub_rviz_img = message_filters.Subscriber(
+            "~input/rviz_image",
+            Image, queue_size=100, buff_size=2**24)
         sub_class = message_filters.Subscriber(
             '~input/class',
             ClassificationResult, queue_size=100, buff_size=2**24)
-        self.subs = [sub_org_img, sub_img, sub_class]
+        self.subs = [sub_org_img, sub_img, sub_rviz_img, sub_class]
         if rospy.get_param('~approximate_sync', False):
             slop = rospy.get_param('~slop', 0.1)
             sync = message_filters.ApproximateTimeSynchronizer(
@@ -73,9 +76,10 @@ class MailNotify(object):
         for sub in self.subs:
             sub.unregister()
 
-    def callback(self, org_img_msg, img_msg, class_result_msg):
+    def callback(self, org_img_msg, img_msg, rviz_img_msg, class_result_msg):
         self.org_img_msg.append(org_img_msg)
         self.img_msg.append(img_msg)
+        self.rviz_img_msg.append(rviz_img_msg)
         self.class_result_msg.append(class_result_msg)
 
     def request_callback(self, req):
@@ -87,6 +91,7 @@ class MailNotify(object):
 
         self.org_img_msg = []
         self.img_msg = []
+        self.rviz_img_msg = []
         self.class_result_msg = []
 
         self.subscribe()
@@ -106,12 +111,15 @@ class MailNotify(object):
             return PatrolMailNotifyResponse()
         self.org_img_msg = self.org_img_msg[-1]
         self.img_msg = self.img_msg[-1]
+        self.rviz_img_msg = self.rviz_img_msg[-1]
         self.class_result_msg = self.class_result_msg[-1]
 
         bridge = self.bridge
         img = bridge.imgmsg_to_cv2(self.img_msg, desired_encoding='bgr8')
         org_img = bridge.imgmsg_to_cv2(
             self.org_img_msg, desired_encoding='bgr8')
+        rviz_img = bridge.imgmsg_to_cv2(
+            self.rviz_img_msg, desired_encoding='bgra8')
 
         # create temp directory
         dirname = tempfile.mkdtemp()
@@ -124,6 +132,9 @@ class MailNotify(object):
         img_path = os.path.join(dirname, 'detected-img.jpg')
         cv2.imwrite(img_path, img)
         os.chmod(img_path, 0777)
+        rviz_img_path = os.path.join(dirname, 'rviz-img.jpg')
+        cv2.imwrite(rviz_img_path, rviz_img)
+        os.chmod(rviz_img_path, 0777)
         greeting_text = get_greeting()
         if len(self.class_result_msg.labels) == 0:
             body_text = "{}今日の{}は綺麗だね。".\
@@ -144,10 +155,11 @@ class MailNotify(object):
         text_cmd = 'echo -e "' + body_text + '"'
         process1 = subprocess.Popen(shlex.split(text_cmd),
                                     stdout=subprocess.PIPE)
-        mail_cmd = 'mail -s "{}" -a {} -a {} -r {} {}'.format(
+        mail_cmd = 'mail -s "{}" -a {} -a {} -a {} -r {} {}'.format(
             mail_title,
             img_path,
             org_img_path,
+            rviz_img_path,
             from_address,
             to_address)
         subprocess.Popen(shlex.split(mail_cmd),
