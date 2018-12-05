@@ -52,16 +52,16 @@ class MailNotify(object):
         queue_size = rospy.get_param('~queue_size', 100)
         sub_org_img = message_filters.Subscriber(
             "~input/original_image",
-            Image, queue_size=100, buff_size=2**24)
+            Image, queue_size=1000, buff_size=2**24)
         sub_img = message_filters.Subscriber(
             "~input/image",
-            Image, queue_size=100, buff_size=2**24)
+            Image, queue_size=1000, buff_size=2**24)
         sub_rviz_img = message_filters.Subscriber(
             "~input/rviz_image",
-            Image, queue_size=100, buff_size=2**24)
+            Image, queue_size=1000, buff_size=2**24)
         sub_class = message_filters.Subscriber(
             '~input/class',
-            ClassificationResult, queue_size=100, buff_size=2**24)
+            ClassificationResult, queue_size=1000, buff_size=2**24)
         self.subs = [sub_org_img, sub_img, sub_rviz_img, sub_class]
         if rospy.get_param('~approximate_sync', False):
             slop = rospy.get_param('~slop', 0.1)
