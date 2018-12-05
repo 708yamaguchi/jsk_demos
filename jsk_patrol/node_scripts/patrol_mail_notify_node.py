@@ -43,7 +43,7 @@ class MailNotify(object):
         self.wait_n_topic = rospy.get_param('~wait_n_topic', 1)
         if self.wait_n_topic < 0:
             raise ValueError("wait n topic should be greater than 0")
-        self.tweet_pub = rospy.Publisher('~tweet', String)
+        self.tweet_pub = rospy.Publisher('~tweet', String, queue_size=1)
         self.service = rospy.Service(
             '~notify',
             PatrolMailNotify, self.request_callback)
