@@ -92,7 +92,16 @@
   (now-start-ih-with-fail-detection :deg 10)
   
   ;; 沸騰させる
-  (now-boil-with-dialogue)
+  (look-at-pot)
+  (ros::spin-once)
+  (if *max-temp*
+    (progn
+      (while (< *max-temp* 80)
+        (send *ri* :speak-jp "まだお湯は沸騰していません" :wait t)
+        (unix:sleep 5)
+        (ros::spin-once))
+      (send *ri* :speak-jp "お湯が沸騰しました。" :wait t))
+    (now-boil-with-dialogue))
   
   ;; 火を止める
   (load "package://jsk_2020_04_pr2_curry/euslisp/cook-with-pos-map/soup-from-boil/ih-use-arrange-codes.l")
@@ -100,8 +109,8 @@
   (push-knob)
   (set-pose-3)
   
-  (send *ri* :speak-jp "沸騰させる調理を行いました．確認してokと合図をして下さい")
-  (curry-ok-wait)
+  (send *ri* :speak-jp "沸騰させる調理を行いました．" :wait t)
+  ;; (curry-ok-wait)
   (send *ri* :speak-jp "次の工程に移ります")
   
   (warn "please run (soup-arrange-2) ~%")
@@ -124,16 +133,18 @@
   
   ;; お湯を注ぐ ;; 何回かやる？
   (setq *pour-flag* nil)
-  (until *pour-flag*
-         (now-arrange-curry) ;; ここを改良したい？？認識を入れるなどしたい？IKが失敗したらやめるなど？
-         ;; お湯を注ぐ状態を確認する
-         ;; (look-at-pot) 
-         (send *ri* :speak-jp "まだお湯が必要ですか？")
-         (curry-dialogue)
-         (unless (equal *data* '("はい"))
-           (setq *pour-flag* t)
-           )
-         )
+  (dotimes (i 2)
+    (now-arrange-curry))
+  ;; (until *pour-flag*
+  ;;        (now-arrange-curry) ;; ここを改良したい？？認識を入れるなどしたい？IKが失敗したらやめるなど？
+  ;;        ;; お湯を注ぐ状態を確認する
+  ;;        ;; (look-at-pot) 
+  ;;        (send *ri* :speak-jp "まだお湯が必要ですか？")
+  ;;        (curry-dialogue)
+  ;;        (unless (equal *data* '("はい"))
+  ;;          (setq *pour-flag* t)
+  ;;          )
+  ;;        )
 
   (release-pot-from-below-model)
   (put-ladle-a)
@@ -141,17 +152,23 @@
   (set-pose)
   
   ;;完成！！
-  (send *ri* :speak-jp "お湯を注ぐ工程を行いました．確認してokと合図をして下さい")
-  (curry-ok-wait)
-  (send *ri* :speak-jp "スープが完成しました")
-  
-  ;; (warn "please run (soup-arrange-3) ~%")
+  (send *ri* :speak-jp "お湯を注ぐ工程を行いました．" :wait t)
+  ;; (curry-ok-wait)
+
+  (warn "please run (soup-arrange-3) ~%")
   )
 
 
 (defun soup-arrange-3 () ;; 冷ます
-  
-  (warn "please run (soup-arrange-4) ~%")
+  (look-at-dish)
+  (ros::spin-once)
+  (if *max-temp*
+    (while (> *max-temp* 70)
+      (send *ri* :speak-jp "まだスープが熱いです。もう少しお待ちください。" :wait t)
+      (unix:sleep 5)
+      (ros::spin-once)))
+  (send *ri* :speak-jp "スープが完成しました")
+  ;; (warn "please run (soup-arrange-4) ~%")
   )
 
 (defun soup-arrange-all ()
@@ -160,6 +177,6 @@
   (soup-arrange-1) ;; 沸騰させる
   (unix:sleep 2)
   (soup-arrange-2) ;; お湯を注ぐ
-  ;; (unix:sleep 2)
-  ;; (soup-arrange-3) ;; 冷ます
+  (unix:sleep 2)
+  (soup-arrange-3) ;; 冷ます
   )

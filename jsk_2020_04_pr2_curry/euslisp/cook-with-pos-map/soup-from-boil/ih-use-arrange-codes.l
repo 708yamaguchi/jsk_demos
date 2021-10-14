@@ -19,7 +19,6 @@
   ;; arrange original
   (setq *ih-knob-coords* (make-coords :pos (float-vector 680 8110 30715) :rpy (float-vector -3.047 -0.011 1.512))) ;; ここを変える
   
-  
   (move-to-arrange-irt)
   (objects (list *pr2* *scene* *spatula* *ladle* *pot*))
   (update-view)
@@ -222,6 +221,20 @@
       (setq *fail-flag* t))
   )
 
+;; Temperature recognition
+(ros::load-ros-manifest "std_msgs")
+(setq *max-temp* nil)
+(setq *min-temp* nil)
+(setq *center-temp* nil)
+(defun max-temp-cb (msg)
+  (setq *max-temp* (send msg :data))
+(defun min-temp-cb (msg)
+  (setq *min-temp* (send msg :data))
+(defun center-temp-cb (msg)
+  (setq *center-temp* (send msg :data))
+(ros::subscribe "~thermal/max_temp" std_msgs::Int16 #'max-temp-cb)
+(ros::subscribe "~thermal/min_temp" std_msgs::Int16 #'min-temp-cb)
+(ros::subscribe "~thermal/center_temp" std_msgs::Int16 #'center-temp-cb)
 
 ;; def util-funcs
 (defun reset-rarm ()
