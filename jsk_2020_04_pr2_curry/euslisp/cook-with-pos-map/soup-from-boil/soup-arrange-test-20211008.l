@@ -96,9 +96,9 @@
   (ros::spin-once)
   (if *max-temp*
     (progn
-      (while (< *max-temp* 80)
+      (while (< *max-temp* 75)
         (send *ri* :speak-jp "まだお湯は沸騰していません" :wait t)
-        (unix:sleep 5)
+        (unix:sleep 15)
         (ros::spin-once))
       (send *ri* :speak-jp "お湯が沸騰しました。" :wait t))
     (now-boil-with-dialogue))
@@ -163,9 +163,9 @@
   (look-at-dish)
   (ros::spin-once)
   (if *max-temp*
-    (while (> *max-temp* 70)
+    (while (> *max-temp* 65)
       (send *ri* :speak-jp "まだスープが熱いです。もう少しお待ちください。" :wait t)
-      (unix:sleep 5)
+      (unix:sleep 15)
       (ros::spin-once)))
   (send *ri* :speak-jp "スープが完成しました")
   ;; (warn "please run (soup-arrange-4) ~%")
