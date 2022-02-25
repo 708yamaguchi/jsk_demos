@@ -689,6 +689,7 @@
   )
 
 (defun open-shelf-set ()
+  (send *shelf-door* :angle-vector (float-vector 0))
   ;; 中間姿勢になる
   (rarm-middle-pose)
   
@@ -812,6 +813,7 @@
   )
 
 (defun close-shelf-set ()
+  (send *shelf-door* :angle-vector (float-vector 100))
   ;; (setq *rav0* #f(-20.8048 54.2396 -5.42985 -119.734 197.32 -75.8373 -189.059))
   ;; (send *pr2* :rarm :angle-vector *rav0*)
   (send *arrow* :newcoords (make-coords :pos (float-vector 628.029 8828.539 31050.217) :rpy (float-vector -3.14 0.18 -0.086)))
@@ -1974,22 +1976,10 @@
   (put-spatula-0)
   )
 
-(defun now-set-ladle-0 ()
-  (up-rarm)
-  (receive-ladle)
-  (put-ladle-0)
-  )
-
 (defun now-set-ladle-0-with-dialogue ()
   (up-rarm)
   (receive-ladle-with-dialogue)
   (put-ladle-0)
-  )
-
-(defun now-open-shelf ()
-  (open-shelf-set)
-  (open-shelf)
-  (after-open)
   )
 
 (defun now-open-shelf-with-fail-detection ()
@@ -2023,51 +2013,19 @@
   (after-close)
   )
 
-(defun now-set-in-shelf ()
+(defun shelf-check ()
+  (update-pos)
+  (set-pose)
   ;; 棚の中におたまとヘラをセットする．
-  (look-at-shelf)
-  
-  (open-shelf-set)
-  (open-shelf)
-  (after-open)
-  
-  (receive-spatula)
-  (put-spatula-0)
-  (receive-ladle)
-  (put-ladle-0)
-  
-  (close-shelf-set)
-  (close-shelf)
-  (after-close)
 
-  (set-head)
-  )
-
-(defun now-set-in-shelf-with-dialogue ()
+  ;; 棚の扉を開ける
   (look-at-shelf)
-
-  ;; 棚の中におたまとヘラをセットする．
-  (open-shelf-set)
-  (open-shelf)
-  (after-open)
-  
-  (set-head)
-  (receive-spatula-with-dialogue)
-  (look-at-shelf)
-  (put-spatula-0)
-  (set-head)
-  (receive-ladle-with-dialogue)
-  (look-at-shelf)
-  (put-ladle-0)
-  
-  (close-shelf-set)
-  (close-shelf)
-  (after-close)
-
-  (set-head)
+  (now-open-shelf-with-fail-detection)
   )
 
 (defun now-set-in-shelf-with-dialogue-and-fail-detection ()
+  (update-pos)
+  (set-pose)
   ;; 棚の中におたまとヘラをセットする．
 
   ;; 棚の扉を開ける
@@ -2094,32 +2052,9 @@
   (set-head)
   )
 
-(defun now-set-from-shelf ()
-  (look-at-shelf)
-  
-  (open-shelf-set)
-  (open-shelf)
-  (after-open)
-  
-  (rarm-middle-pose)
-  (grasp-spatula-0)
-  (set-head)
-  (rarm-middle-pose)
-  (put-spatula-1)
-  (rarm-middle-pose)
-  (look-at-shelf)
-  (grasp-ladle-0)
-  (rarm-middle-pose)
-  (put-ladle-1)
-  
-  (close-shelf-set)
-  (close-shelf)
-  (after-close)
-
-  (set-head)
-  )
-
 (defun now-set-from-shelf-with-failure-detection ()
+  (update-pos)
+  (set-pose)
   ;; 棚の扉を開ける
   (look-at-shelf)
   (now-open-shelf-with-fail-detection)

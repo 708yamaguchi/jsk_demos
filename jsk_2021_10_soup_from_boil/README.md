@@ -80,3 +80,76 @@ roseus soup-arrange-test-20211008.l
 - 沸騰させる : IHコンロを操作して沸騰させる．
 - お湯を注ぐ : おたまを使ってお湯をコップに注ぐ．
 - 冷ます : WIP!!
+
+# WIP: 食器、おたまなどの準備
+
+行うのは
+- 右グリッパの付替え
+- 地図合わせ
+- 食器、おたまのセット
+
+PR2を移動させるために、電源ケーブルを抜く。
+準備が出来たら
+```
+# ROS_MASTER_URIをPR1040にすることを忘れない (e.g. rossetmaster pr1040)
+source ~/soup_ws/devel/setup.bash
+roscd jsk_2021_10_soup_from_boil/euslisp
+roseus move-to-kitchen-with-map.l
+(move-to-kitchen-ri-direct)
+```
+としてPR2を位置に移動させる．
+```
+move-to : succeeded
+```
+と出たら移動に成功．
+移動が失敗した場合はps3joyでPR2をコンロの正面まで動かす．
+移動が終わったら電源ケーブルを挿す．
+
+### 位置のチェック
+
+```
+source ~/soup_ws/devel/setup.bash
+roscd jsk_2021_10_soup_from_boil/euslisp
+roseus tool-use-arrange-codes.l
+(shelf-check)
+```
+としてIHコンロの操作が成功するか確認することができる．
+失敗した場合は、`euslisp/model/my-eng2-coords.l`の`*shelf-door-coords*`の位置を調整する。
+
+
+## 実行
+```
+source ~/soup_ws/devel/setup.bash
+roscd jsk_2021_10_soup_from_boil/euslisp
+roseus tool-use-arrange-codes.l
+(now-set-in-shelf-with-dialogue-and-fail-detection)
+```
+でプログラムを実行する．
+
+### デモの内容
+```
+(defun now-set-from-shelf-with-failure-detection ()
+  ;; 棚の扉を開ける
+  (look-at-shelf)
+  (now-open-shelf-with-fail-detection)
+
+  ;; ヘラをセットする
+  (rarm-middle-pose)
+  (grasp-spatula-0-with-fail-detection)
+  (rarm-middle-pose)
+  (put-spatula-1)
+
+  ;; おたまをセットする
+  (rarm-middle-pose)
+  (grasp-ladle-0-with-fail-detection)
+  (rarm-middle-pose)
+  (put-ladle-1)
+
+  ;; 棚の扉を閉める
+  (close-shelf-set)
+  (close-shelf)
+  (after-close)
+
+  (set-head)
+  )
+```
