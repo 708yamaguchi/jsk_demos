@@ -21,7 +21,7 @@
     (send-super* :move-to coords args :no-wait t))
   (:go-pos-unsafe (&rest args)
     (send* self :go-pos-unsafe-no-wait args))
-  (:speak (text &key (lang "") (topic-name "robotsound") wait)
+  (:speak (text &key (lang "") (topic-name "robotsound") wait (volume 1.0))
     nil)
   )
 
