@@ -97,7 +97,7 @@
     (send *ri* :angle-vector-sequence
           (list av1 av2)
           (list 3000 3000))
-    (cancel-motion-when-touch :arm :rarm :direction :z :threshold 15)
+    (cancel-motion-when-touch :arm :rarm :direction :z :threshold 2)
     (send *viewer* :draw-objects)
 
     ;; おたまを置く
@@ -678,6 +678,7 @@
   ;;掴む位置
   (let ((ik-target (send *ladle* :copy-worldcoords)))
     (send ik-target :rotate (deg2rad -90) :x)
+    (send ik-target :translate #f(0 10 0) :world) ;;
 
     ;; つかむ
     (grasp-tool-on-table ik-target)

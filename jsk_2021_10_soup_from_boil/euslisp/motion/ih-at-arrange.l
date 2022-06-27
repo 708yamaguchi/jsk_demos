@@ -31,6 +31,7 @@
 (defun set-pose-3 ()
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (send *pr2* :larm :angle-vector #f(117.007 48.3805 113.439 -103.326 38.7107 -5.72958 14.4628))
+  (send *pr2* :head :neck-p :joint-angle 20)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 4000)
   (send *ri* :wait-interpolation)
   (update-view)
@@ -49,7 +50,7 @@
       )
     (send *ri* :angle-vector-sequence avs tms))
 
-  (cancel-motion-when-touch :arm :larm :direction :x :threshold -15)
+  (cancel-motion-when-touch :arm :larm :direction :x :threshold -2)
   )
 
 (defun push-knob ()
@@ -301,6 +302,7 @@
 (defun look-at-pot ()
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (send *pr2* :head :look-at (send (send (send *pot* :attention-attention0) :copy-worldcoords) :worldpos))
+  (send *pr2* :head :neck-p :joint-angle 20)
   (send *viewer* :draw-objects)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 2000)
   (send *ri* :wait-interpolation)
@@ -377,7 +379,7 @@
       (setq avs (append avs (list av)))
       (setq tms (append tms (list 200))))
     (send *ri* :angle-vector-sequence avs tms)
-    (cancel-motion-when-touch :arm :larm :direction :z :threshold -15))
+    (cancel-motion-when-touch :arm :larm :direction :z :threshold -2))
   (update-view)
 
   (let (av1 av2 av3)
@@ -401,7 +403,7 @@
       (setq avs (append avs (list av)))
       (setq tms (append tms (list 200))))
     (send *ri* :angle-vector-sequence avs tms)
-    (cancel-motion-when-touch :arm :larm :direction :x :threshold -15)
+    (cancel-motion-when-touch :arm :larm :direction :x :threshold -2)
     (send *pr2* :larm :move-end-pos #f(5 0 0) :world))
   (update-view)
 
@@ -413,7 +415,7 @@
       (setq avs (append avs (list av)))
       (setq tms (append tms (list 400))))
     (send *ri* :angle-vector-sequence avs tms)
-    (cancel-motion-when-touch :arm :larm :direction :y :threshold -5))
+    (cancel-motion-when-touch :arm :larm :direction :y :threshold -0.5))
   (update-view)
 
   ;; Calculate *ih-knob-coords*
@@ -464,7 +466,7 @@
       ;; If PR2 have thermal sensor
       (progn
         (setq max-temp (send max-temp-msg :data))
-        (while (< max-temp 75)
+        (while (< max-temp 60)
           (send *ri* :speak-jp "まだお湯は沸騰していません" :wait t)
           (unix:sleep 15)
           (setq max-temp

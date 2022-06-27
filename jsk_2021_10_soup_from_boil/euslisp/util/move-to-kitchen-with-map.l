@@ -245,6 +245,7 @@ Arg to candidates:
 ;; def util-funcs
 (defun set-pose ()
   (send *pr2* :reset-manip-pose)
+  (send *pr2* :head :neck-p :joint-angle 20)
   (send *pr2* :torso_lift_joint :joint-angle 325)
   (send *viewer* :draw-objects)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 4000)
@@ -255,11 +256,13 @@ Arg to candidates:
 (defun pre-ik-pose ()
   ;; set-pose without ri
   (send *pr2* :reset-manip-pose)
+  (send *pr2* :head :neck-p :joint-angle 20)
   (send *pr2* :torso_lift_joint :joint-angle 325)
   )
 
 (defun set-pose-rec ()
   (send *pr2* :reset-manip-pose)
+  (send *pr2* :head :neck-p :joint-angle 20)
   (send *pr2* :torso_lift_joint :joint-angle 325)
   (send *pr2* :head_tilt_joint :joint-angle 0)
   (send *viewer* :draw-objects)
@@ -268,7 +271,7 @@ Arg to candidates:
   )
 
 (defun set-head ()
-  (send *pr2* :head :neck-p :joint-angle 50)
+  (send *pr2* :head :neck-p :joint-angle 20)
   (send *pr2* :head :neck-y :joint-angle 0.0)
   (send *viewer* :draw-objects)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 2000)
