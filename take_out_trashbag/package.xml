@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package>
+  <name>take_out_trashbag</name>
+  <version>0.0.5</version>
+  <description>The take_out_trashbag package</description>
+
+  <maintainer email="tsukamoto@jsk.imi.i.u-tokyo.ac.jp">Naoto Tsukamoto</maintainer>
+  <author email="tsukamoto@jsk.imi.i.u-tokyo.ac.jp">Naoto Tsukamoto</author>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>fetcheus</build_depend>
+
+  <run_depend>fetcheus</run_depend>
+  <run_depend>jsk_fetch_startup</run_depend>
+  <run_depend>jsk_maps</run_depend>
+  <run_depend>jsk_pcl_ros</run_depend>
+
+
+</package>
