@@ -20,3 +20,8 @@
     local-name: jsk-ros-pkg/jsk_3rdparty
     uri: https://github.com/jsk-ros-pkg/jsk_3rdparty
     version: master
+# To use kinova robot arm
+- git:
+    local-name: jsk-ros-pkg/jsk_robot
+    uri: https://github.com/jsk-ros-pkg/jsk_robot
+    version: master
