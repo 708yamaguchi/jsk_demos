@@ -32,7 +32,10 @@
 			      :translate (float-vector 0 0 (* i 30)) :local)))))
   (dolist (dish *dishes*)
     (send dish :translate #f(5050 0 720) :world))
-  ;; Show objects on IRT Viewer
-  (objects (append (list *room610* *pr2* *closet* *coffee-cup* *microwave*) *dishes*)))
+  ;; Show objects on IRT Viewer and Kinematics Simulator
+  (setq *all-objects* (append (list *room610* *pr2* *closet* *coffee-cup* *microwave*) *dishes*))
+  (objects *all-objects*)
+  (setq *ri* (instance pr2-interface :init :objects *all-objects*))
+  )
 
 (setup-kinoko)
