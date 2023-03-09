@@ -38,7 +38,6 @@
   <run_depend>laser_filters_jsk_patch</run_depend>
   <run_depend>roseus</run_depend>
   <run_depend>pr2eus</run_depend>
-  <run_depend>kinovaeus</run_depend>
   <run_depend>roseus_smach</run_depend>
   <run_depend>smach_viewer</run_depend>
   <run_depend>message_runtime</run_depend>
