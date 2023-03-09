@@ -49,7 +49,7 @@ More detailed information is provided in the [citation](#citation)
 - [pr2_gripper_sensor_msgs](https://github.com/pr2/pr2_gripper_sensor)
 
 ```bash
-source /opt/ros/melodic/setup.bash
+source /opt/ros/$ROS_DISTRO/setup.bash
 mkdir ~/ros/jsk_demo_ws/src -p
 cd ~/ros/jsk_demo_ws
 catkin init
