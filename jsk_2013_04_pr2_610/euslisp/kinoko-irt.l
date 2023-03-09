@@ -23,7 +23,7 @@
   ;; TODO: cloth and hanger
   ;; Coffee cup
   (setq *coffee-cup* (coffee-cup-cup))
-  (send *coffee-cup* :translate #f(5050 -300 720) :world)
+  (send *coffee-cup* :translate #f(4700 100 720) :world)
   ;; microwave
   (setq *microwave* (toshiba-microwave-oven))
   (send *microwave* :rotate -pi/2 :z :local)
@@ -54,6 +54,7 @@
 
   ;; Define spots
   (setq *arms-spot* (make-cascoords :pos #f(4500 -1500 0) :rpy (list pi/2 0 0)))
+  (setq *microwave-spot* (make-coords :pos #f(5700 1500 0) :rpy (list pi/2 0 0)))
   )
 
 (defun compare-name (a b)
@@ -98,7 +99,7 @@
 
 (defun place-arm (arm-num) ;; arm-num is 0 ~ (len *arms*)
   ;; Place
-  (send *pr2* :rarm :move-end-pos #f(-50 200 -50) :world)
+  (send *pr2* :rarm :move-end-pos #f(-50 200 50) :world)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 1000)
   (send *ri* :wait-interpolation)
   ;; Release
@@ -112,10 +113,17 @@
   (send *ri* :wait-interpolation)
   )
 
+(defun move-to-spot (spot &key (no-wait nil))
+  ;; move (No wait because arm modules move during PR2 move)
+  (clear-costmap)
+  (send *pr2* :move-to spot :world)
+  (send *ri* :move-to spot :frame-id *room610-origin* :no-wait no-wait)
+  t)
+
 (defun move-arm-to-sink ()
-  (while (not (move-to-arms)))
+  (move-to-spot *arms-spot*) ;; (move-to-table-side)
   (pick-arm 0)
-  (while (not (move-to-sink)))
+  (move-to-spot (send *room610* :spot-sink-spot)) ;; (move-to-sink)
   (send *ri* :go-pos 0 0.4 0)
   (place-arm 0)
   )
@@ -123,12 +131,40 @@
 ;; See (demo) function in setup.l
 (defun move-tray-to-sink ()
   (connect-dishes-to-tray :assoc)
-  (while (not (move-to-table-side)))
+  (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
   (while (not (pick-tray-table-side)))
-  (while (not (move-to-sink)))
+  (move-to-spot (send *room610* :spot-sink-spot)) ;; (move-to-sink)
   (place-tray-sink)
   (send *ri* :go-pos-unsafe 0 0 -90)
   (connect-dishes-to-tray :dissoc)
+  )
+
+(defun move-cup-to-sink ()
+  ;; Move
+  (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
+  ;; Reach
+  (send *pr2* :rarm :inverse-kinematics *coffee-cup* :rotation-axis nil)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :wait-interpolation)
+  ;; Grasp
+  (let ((ri-coffee-cup (find *coffee-cup* (send *ri* :objects)
+			     :test #'compare-name)))
+  (send *ri* :start-grasp :rarm :wait t :objects (list ri-coffee-cup))
+  (send (send *pr2* :rarm :end-coords) :assoc *coffee-cup*))
+  ;; Move
+  (move-to-spot *microwave-spot*)
+  ;; Place
+  (send *pr2* :rarm :move-end-pos #f(0 200 80) :world)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :wait-interpolation)
+  ;; Release
+  (send *ri* :stop-grasp :rarm :wait t)
+  (send (send *pr2* :rarm :end-coords) :dissoc *coffee-cup*)
+  ;; Reset pose
+  (send *pr2* :reset-pose)
+  (pr2-pick-tray-pose)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :wait-interpolation)
   )
 
 (defun demo-dish-wash ()
