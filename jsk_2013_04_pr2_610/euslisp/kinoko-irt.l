@@ -39,12 +39,11 @@
   ;; Robot Arm object
   (setq *arms* nil)
   (dotimes (i 5)
-    (setq *arms*
-          (append *arms*
-                  (list (send (instance gen3_lite_gen3_lite_2f-robot :init)
-                              :translate (float-vector (* i 150) 0 0) :local)))))
-  (dolist (arm *arms*)
-    (send arm :translate #f(4700 -700 720) :world))
+    (let ((arm (instance gen3_lite_gen3_lite_2f-robot :init)))
+      (send arm :translate (float-vector (* i 150) 0 0) :local)
+      (send arm :translate #f(4700 -900 720) :world)
+      (send arm :name (format nil "arm~A" i))
+      (setq *arms* (append *arms* (list arm)))))
 
   ;; Show objects on IRT Viewer and Kinematics Simulator
   (setq *all-objects* (append (send *room610* :objects)
@@ -57,9 +56,12 @@
   (setq *arms-spot* (make-cascoords :pos #f(4500 -1500 0) :rpy (list pi/2 0 0)))
   )
 
+(defun compare-name (a b)
+  (string= (send a :name) (send b :name)))
+
 (defun connect-dishes-to-tray (command) ;; command is :assoc or :dissoc
   (let ((ri-tray (find *tray* (send *ri* :objects)
-		       :test #'(lambda (a b) (string= (send a :name) (send b :name))))))
+		       :test #'compare-name)))
     (print ri-tray)
     ;; Assoc/Dissoc objects in IRT viewer
     (dolist (dish *dishes*)
@@ -68,11 +70,58 @@
     (dolist (dish *dishes*)
       (send ri-tray command
 	    (find dish (send *ri* :objects)
-		  :test #'(lambda (a b) (string= (send a :name) (send b :name))))))
+		  :test #'compare-name)))
     ))
 
+(defun move-to-arms ()
+  (warn "move-to-arms~%")
+  (use-tilt-laser-obstacle-cloud nil)
+  (clear-costmap)
+  (send *pr2* :move-to *arms-spot* :world)
+  (if (not (send *ri* :move-to *arms-spot* :frame-id *room610-origin*))
+      (return-from move-to-arms nil))
+  (use-tilt-laser-obstacle-cloud t)
+  t)
+
+(defun pick-arm (arm-num) ;; arm-num is 0 ~ (len *arms*)
+  (let* ((target-arm (elt *arms* arm-num))
+	 (arm-pose (send target-arm :copy-worldcoords))
+	 (ri-target-arm (find target-arm (send *ri* :objects)
+			      :test #'compare-name)))
+    ;; Reach
+    (send *pr2* :rarm :inverse-kinematics arm-pose :rotation-axis nil)
+    (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+    (send *ri* :wait-interpolation)
+    ;; Grasp
+    (send *ri* :start-grasp :rarm :wait t :objects (list ri-target-arm))
+    (send (send *pr2* :rarm :end-coords) :assoc target-arm)))
+
+(defun place-arm (arm-num) ;; arm-num is 0 ~ (len *arms*)
+  ;; Place
+  (send *pr2* :rarm :move-end-pos #f(-50 200 -50) :world)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 1000)
+  (send *ri* :wait-interpolation)
+  ;; Release
+  (let ((target-arm (elt *arms* arm-num)))
+    (send *ri* :stop-grasp :rarm :wait t)
+    (send (send *pr2* :rarm :end-coords) :dissoc target-arm))
+  ;; Reset pose
+  (send *pr2* :reset-pose)
+  (pr2-pick-tray-pose)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :wait-interpolation)
+  )
+
+(defun move-arm-to-sink ()
+  (while (not (move-to-arms)))
+  (pick-arm 0)
+  (while (not (move-to-sink)))
+  (send *ri* :go-pos 0 0.4 0)
+  (place-arm 0)
+  )
+
 ;; See (demo) function in setup.l
-(defun demo-tray-kinoko ()
+(defun move-tray-to-sink ()
   (connect-dishes-to-tray :assoc)
   (while (not (move-to-table-side)))
   (while (not (pick-tray-table-side)))
@@ -80,6 +129,11 @@
   (place-tray-sink)
   (send *ri* :go-pos-unsafe 0 0 -90)
   (connect-dishes-to-tray :dissoc)
+  )
+
+(defun demo-dish-wash ()
+  (move-tray-to-sink)
+  (move-arm-to-sink)
   )
 
 (setup-kinoko)
