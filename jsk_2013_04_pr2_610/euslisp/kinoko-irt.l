@@ -46,13 +46,13 @@
       (send arm :translate #f(4700 -900 720) :world)
       (send arm :name (format nil "arm~A" i))
       (setq *arms* (append *arms* (list arm)))))
-  (setq *avs-goal* (make-list 5 :initial-element #f(0 0 0 0 0 0)))
+  (setq *avs-goal* (make-list 5 :initial-element #f(0.0 -16.0 75.0 0.0 -60.0 0.0)))
 
   ;; Show objects on IRT Viewer and Kinematics Simulator
   (dotimes (i 5)
     ;; Remove 610 walls for visibility
     (send *room610* :remove-object
-	  (format nil "room610-external-wall-~A" i)))
+          (format nil "room610-external-wall-~A" i)))
   (setq *all-objects* (append (send *room610* :objects)
                               (list *closet* *coffee-cup* *microwave*)
                               *dishes* *arms*))
@@ -100,9 +100,7 @@
   (warn "move-to-arms~%")
   (use-tilt-laser-obstacle-cloud nil)
   (clear-costmap)
-  (send *pr2* :move-to *arms-spot* :world)
-  (if (not (send *ri* :move-to *arms-spot* :frame-id *room610-origin*))
-      (return-from move-to-arms nil))
+  (move-to-spot *arms-spot*)
   (use-tilt-laser-obstacle-cloud t)
   t)
 
@@ -141,49 +139,52 @@
   (send *ri* :move-to spot :frame-id *room610-origin* :no-wait no-wait)
   t)
 
+(defun move-to-pos (x y d) ;; x[m], y[m], d[rad]
+  (let ((coords (make-coords :pos (float-vector (* x 1000) (* y 1000) 0)
+                             :rpy (float-vector d 0 0))))
+  (send *pr2* :move-to coords :local)
+  (send *ri* :move-to (send *pr2* :copy-worldcoords))))
+
 (defun move-arm-to-sink ()
   (move-to-spot *arms-spot*) ;; (move-to-table-side)
   (pick-arm 0)
   (move-to-spot (send *room610* :spot-sink-spot)) ;; (move-to-sink)
-  (send *pr2* :move-to (make-coords :pos #f(0 400 0)) :local)
-  (send *ri* :go-pos 0 0.4 0)
+  (move-to-pos 0 0.4 0)
   (place-arm 0)
   )
 
 (defun set-arm-av (arm-num av-target)
-  (let ((avs-arm (send-all *arms* :angle-vector)))
+  (let ((avs-arm (send-all *ri-arms* :angle-vector)))
     (setq *avs-goal* avs-arm)
     (setf (elt *avs-goal* arm-num) av-target)))
 
 (defun reach-dish-by-arm ()
   (let* ((arm-index 0)
-	 (target-arm (elt *arms* arm-index))
-	 (dummy-arm-for-ik (copy-object target-arm))
-	 (target-coords
-	  (send (send (car *dishes-on-tray*) :copy-worldcoords)
-		:rotate pi/2 :y)))
+         (target-arm (elt *arms* arm-index))
+         (target-coords
+          (send (send (car *dishes-on-tray*) :copy-worldcoords)
+                :rotate pi/2 :y)))
     (set-arm-av arm-index
-		(send dummy-arm-for-ik :rarm :inverse-kinematics
-		      target-coords :rotation-axis :x))
+                (send target-arm :rarm :inverse-kinematics
+                      target-coords :rotation-axis :x))
     ))
 
 (defun move-dish-to-sink-by-arm ()
   (let* ((arm-index 0)
-	 (target-arm (elt *arms* arm-index))
-	 (dummy-arm-for-ik (copy-object target-arm))
-	 (ri-target-arm (elt *ri-arms* arm-index)))
+         (target-arm (elt *arms* arm-index))
+         (ri-target-arm (elt *ri-arms* arm-index)))
     (send (send target-arm :rarm :end-coords) :assoc (car *dishes-on-tray*))
     (send (send ri-target-arm :rarm :end-coords) :assoc (car *ri-dishes-on-tray*))
     (set-arm-av arm-index
-		(send dummy-arm-for-ik :rarm
-		      :move-end-pos (v+ #f(0 400 -400)
-					(scale (* 2 (length *dishes-on-sink*)) #f(0 0 30)))
-		      :world :rotation-axis :x))))
+                (send target-arm :rarm
+                      :move-end-pos (v+ #f(0 400 -400)
+                                        (scale (* 2 (length *dishes-on-sink*)) #f(0 0 30)))
+                      :world :rotation-axis :x))))
 
 (defun release-dish-by-arm ()
   (let* ((arm-index 0)
-	 (target-arm (elt *arms* arm-index))
-	 (ri-target-arm (elt *ri-arms* arm-index)))
+         (target-arm (elt *arms* arm-index))
+         (ri-target-arm (elt *ri-arms* arm-index)))
     (send (send target-arm :rarm :end-coords) :dissoc (car *dishes-on-tray*))
     (send (send ri-target-arm :rarm :end-coords) :dissoc (car *ri-dishes-on-tray*)))
   (setq *dishes-on-sink* (append (list (car *dishes-on-tray*)) *dishes-on-sink*))
@@ -208,14 +209,13 @@
        )) ;; when
 
    ;; Move arm
-   (let* ((avs-orig (send-all *arms* :angle-vector))
-          (avs-goal *avs-goal*)
+   (let* ((avs-orig (send-all *ri-arms* :angle-vector))
           (avs-diff (mapcar #'v- *avs-goal* avs-orig))
-	  ;; TODO: round value. e.g. If diff < 0.01, 0. Else, 5.0.
           ;; (avs-diff-round (mapcar #'(lambda (x) (concatenate float-vector ;; Set each elements more than 5
           ;;                                                    (mapcar #'(lambda (y) (max y 5)) (copncatenate cons x))))
           ;;                         avs-diff))
-          (avs-plus (mapcar #'(lambda (x) (scale 0.01 x)) avs-diff))
+          (avs-diff-round (mapcar #'round-av avs-diff))
+          (avs-plus (mapcar #'(lambda (x) (scale 0.3 x)) avs-diff-round))
           (avs-new (mapcar #'v+ avs-orig avs-plus)))
      ;; Do not update IRT Viewer
      ;; (mapcar #'(lambda (x y) (send x :angle-vector y)) *arms* avs-new)
@@ -223,6 +223,15 @@
      )
    (send-super :robot-interface-simulation-callback)
    ))
+
+(defun round-av (av)
+  ;; If |y| < 0.1, y is 0. Else, |y| >= 1.0.
+  (concatenate float-vector
+               (mapcar #'(lambda (y)
+                           (if (< y 0)
+                             (if (> y -0.1) 0 (min y -1))
+                             (if (< y 0.1) 0 (max y 1))))
+                       (concatenate cons av))))
 
 ;; See (demo) function in setup.l
 (defun move-tray-to-sink ()
@@ -236,22 +245,22 @@
   ;; Place tray
   (place-tray-sink)
   ;; Move
-  (send *pr2* :move-to (make-coords :pos #f(0 0 0) :rpy (float-vector 0 0 -pi/2)) :local)
-  (send *ri* :go-pos-unsafe 0 0 -90)
+  (move-to-pos 0 0 -pi/2)
   (connect-dishes-to-tray :dissoc)
   )
 
 (defun move-cup-to-shelf ()
   ;; Move
   (reach-dish-by-arm)
+  (move-to-pos -1.0 0.3 0)
+  (move-dish-to-sink-by-arm)
   (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
   ;; Reach
-  (move-dish-to-sink-by-arm)
+  (release-dish-by-arm)
   (send *pr2* :rarm :inverse-kinematics *coffee-cup* :rotation-axis nil)
-  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
   ;; Grasp
-  (release-dish-by-arm)
   (send *ri* :start-grasp :rarm :wait t :objects (list *ri-coffee-cup*))
   (send (send *pr2* :rarm :end-coords) :assoc *coffee-cup*)
   ;; Move
@@ -260,25 +269,39 @@
   ;; Place
   (move-dish-to-sink-by-arm)
   (send *pr2* :rarm :move-end-pos #f(200 200 80) :world)
-  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
   ;; Release
-  (release-dish-by-arm)
   (send *ri* :stop-grasp :rarm :wait t)
   (send (send *pr2* :rarm :end-coords) :dissoc *coffee-cup*)
   ;; Reset pose
+  (release-dish-by-arm)
   (send *pr2* :reset-pose)
   (pr2-pick-tray-pose)
-  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
   )
 
 (defun move-arm-to-shelf ()
-  (move-to-spot *arms-spot*) ;; (move-to-table-side)
+  ;; Move (move-to-table-side)
+  (reach-dish-by-arm)
+  (move-to-pos -0.5 1.0 0)
+  (move-dish-to-sink-by-arm)
+  (move-to-pos -0.5 1.0 0)
+  (release-dish-by-arm)
+  (move-to-spot *arms-spot*)
+  ;; Pick arm
+  (reach-dish-by-arm)
   (pick-arm 1)
-  (move-to-spot *microwave-spot*) ;; (move-to-sink)
-  (send *pr2* :move-to (make-coords :pos #f(-100 250 0)) :local)
-  (send *ri* :go-pos -0.1 0.25 0)
+  ;; Move (move-to-sink)
+  (move-dish-to-sink-by-arm)
+  (move-to-pos 0.5 -1.0 0)
+  (release-dish-by-arm)
+  (move-to-pos 0.5 -1.0 0)
+  (reach-dish-by-arm)
+  (move-to-spot *microwave-spot*)
+  ;; Place arm
+  (release-dish-by-arm)
   (place-arm 1)
   )
 
@@ -286,6 +309,8 @@
   (move-tray-to-sink)
   (move-arm-to-sink)
   (move-cup-to-shelf)
+  (move-arm-to-shelf)
   )
 
 (setup-kinoko)
+(demo-dish-wash)
