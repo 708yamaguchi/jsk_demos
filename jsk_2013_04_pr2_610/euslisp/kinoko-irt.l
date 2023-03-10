@@ -110,7 +110,7 @@
          (ri-target-arm (elt *ri-arms* arm-num)))
     ;; Reach
     (send *pr2* :rarm :inverse-kinematics arm-pose :rotation-axis nil)
-    (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+    (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
     (send *ri* :wait-interpolation)
     ;; Grasp
     (send *ri* :start-grasp :rarm :wait t :objects (list ri-target-arm))
@@ -119,7 +119,7 @@
 (defun place-arm (arm-num) ;; arm-num is 0 ~ (len *arms*)
   ;; Place
   (send *pr2* :rarm :move-end-pos #f(-50 200 50) :world)
-  (send *ri* :angle-vector (send *pr2* :angle-vector) 1000)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 2000)
   (send *ri* :wait-interpolation)
   ;; Release
   (let ((target-arm (elt *arms* arm-num)))
@@ -158,7 +158,7 @@
     (setq *avs-goal* avs-arm)
     (setf (elt *avs-goal* arm-num) av-target)))
 
-(defun reach-dish-by-arm ()
+(defun pile-dish-1 ()
   (let* ((arm-index 0)
          (target-arm (elt *arms* arm-index))
          (target-coords
@@ -169,7 +169,7 @@
                       target-coords :rotation-axis :x))
     ))
 
-(defun move-dish-to-sink-by-arm ()
+(defun pile-dish-2 ()
   (let* ((arm-index 0)
          (target-arm (elt *arms* arm-index))
          (ri-target-arm (elt *ri-arms* arm-index)))
@@ -181,7 +181,7 @@
                                         (scale (* 2 (length *dishes-on-sink*)) #f(0 0 30)))
                       :world :rotation-axis :x))))
 
-(defun release-dish-by-arm ()
+(defun pile-dish-3 ()
   (let* ((arm-index 0)
          (target-arm (elt *arms* arm-index))
          (ri-target-arm (elt *ri-arms* arm-index)))
@@ -215,7 +215,7 @@
           ;;                                                    (mapcar #'(lambda (y) (max y 5)) (copncatenate cons x))))
           ;;                         avs-diff))
           (avs-diff-round (mapcar #'round-av avs-diff))
-          (avs-plus (mapcar #'(lambda (x) (scale 0.3 x)) avs-diff-round))
+          (avs-plus (mapcar #'(lambda (x) (scale 0.05 x)) avs-diff-round))
           (avs-new (mapcar #'v+ avs-orig avs-plus)))
      ;; Do not update IRT Viewer
      ;; (mapcar #'(lambda (x y) (send x :angle-vector y)) *arms* avs-new)
@@ -251,12 +251,12 @@
 
 (defun move-cup-to-shelf ()
   ;; Move
-  (reach-dish-by-arm)
+  (pile-dish-1)
   (move-to-pos -1.0 0.3 0)
-  (move-dish-to-sink-by-arm)
+  (pile-dish-2)
   (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
   ;; Reach
-  (release-dish-by-arm)
+  (pile-dish-3)
   (send *pr2* :rarm :inverse-kinematics *coffee-cup* :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
@@ -264,10 +264,10 @@
   (send *ri* :start-grasp :rarm :wait t :objects (list *ri-coffee-cup*))
   (send (send *pr2* :rarm :end-coords) :assoc *coffee-cup*)
   ;; Move
-  (reach-dish-by-arm)
+  (pile-dish-1)
   (move-to-spot *microwave-spot*)
   ;; Place
-  (move-dish-to-sink-by-arm)
+  (pile-dish-2)
   (send *pr2* :rarm :move-end-pos #f(200 200 80) :world)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
@@ -275,7 +275,7 @@
   (send *ri* :stop-grasp :rarm :wait t)
   (send (send *pr2* :rarm :end-coords) :dissoc *coffee-cup*)
   ;; Reset pose
-  (release-dish-by-arm)
+  (pile-dish-3)
   (send *pr2* :reset-pose)
   (pr2-pick-tray-pose)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
@@ -284,25 +284,27 @@
 
 (defun move-arm-to-shelf ()
   ;; Move (move-to-table-side)
-  (reach-dish-by-arm)
+  (pile-dish-1)
   (move-to-pos -0.5 1.0 0)
-  (move-dish-to-sink-by-arm)
-  (move-to-pos -0.5 1.0 0)
-  (release-dish-by-arm)
+  (pile-dish-2)
+  (move-to-pos -0.5 0.5 0)
+  (pile-dish-3)
   (move-to-spot *arms-spot*)
   ;; Pick arm
-  (reach-dish-by-arm)
+  (pile-dish-1)
   (pick-arm 1)
   ;; Move (move-to-sink)
-  (move-dish-to-sink-by-arm)
-  (move-to-pos 0.5 -1.0 0)
-  (release-dish-by-arm)
-  (move-to-pos 0.5 -1.0 0)
-  (reach-dish-by-arm)
+  (pile-dish-2)
+  (move-to-pos 0.5 1.0 0)
+  (pile-dish-3)
+  (move-to-pos 0.5 0.0 0)
+  (pile-dish-1)
   (move-to-spot *microwave-spot*)
   ;; Place arm
-  (release-dish-by-arm)
+  (pile-dish-2)
+  (move-to-pos 0.0 0.2 0)
   (place-arm 1)
+  (pile-dish-3)
   )
 
 (defun demo-dish-wash ()
