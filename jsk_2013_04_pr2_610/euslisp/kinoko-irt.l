@@ -44,6 +44,7 @@
       (send arm :translate #f(4700 -900 720) :world)
       (send arm :name (format nil "arm~A" i))
       (setq *arms* (append *arms* (list arm)))))
+  (setq *avs-goal* (make-list 5 :initial-element #f(0 0 0 0 0 0)))
 
   ;; Show objects on IRT Viewer and Kinematics Simulator
   (setq *all-objects* (append (send *room610* :objects)
@@ -140,32 +141,57 @@
   (place-arm 0)
   )
 
+(defun set-arm-av (arm-num av-target)
+  (let ((avs-arm (send-all *arms* :angle-vector)))
+    (setq *avs-goal* avs-arm)
+    (setf (elt *avs-goal* arm-num) av-target)))
 
-(defun move-arm (arm-num av-target &optional (time 3000))
-  (let* ((arm (elt *arms* arm-num))
-         (ri-arm (elt *ri-arms* arm-num))
-         (av-orig (send arm :angle-vector))
-         (av-diff (v- av-target av-orig))
-         (div 100))
-    (scale (/ 1.0 div) av-diff)
-    (dotimes (i div)
-      (let ((av-new (v+ av-orig (scale (* (+ i 1) (/ 1.0 div)) av-diff))))
-        (send arm :angle-vector av-new)
-        (send ri-arm :angle-vector av-new)
-        (send *irtviewer* :redraw)
-        (send *ri-irtviewer* :redraw)
-        (unix:usleep (* 1000 (/ time div)))))))
+(defmethod robot-move-base-interface
+  (:robot-interface-simulation-callback
+   ()
+   (when current-goal-coords
+     (let* ((orig-coords (send robot :copy-worldcoords))
+            (diff-pos (send orig-coords :difference-position current-goal-coords))
+            (diff-rot (send orig-coords :difference-rotation current-goal-coords :rotation-axis :xy)))
+       (cond
+         ((and (eps= (norm diff-pos) 0) (eps= (norm diff-rot) 0))
+          (setq current-goal-coords nil))
+         (t
+          (send robot :newcoords (midcoords (min (/ 10 (max (norm diff-pos) 10))
+                                                 (/ 0.02 (max (norm diff-rot) 0.02)))
+                                            orig-coords current-goal-coords))))
+       )) ;; when
+
+   ;; Move arm
+   (let* ((avs-orig (send-all *arms* :angle-vector))
+          (avs-goal *avs-goal*)
+          (avs-diff (mapcar #'v- *avs-goal* avs-orig))
+          ;; (avs-diff-round (mapcar #'(lambda (x) (concatenate float-vector ;; Set each elements more than 5
+          ;;                                                    (mapcar #'(lambda (y) (max y 5)) (concatenate cons x))))
+          ;;                         avs-diff))
+          (avs-plus (mapcar #'(lambda (x) (scale 0.05 x)) avs-diff))
+          (avs-new (mapcar #'v+ avs-orig avs-plus)))
+     (mapcar #'(lambda (x y) (send x :angle-vector y)) *arms* avs-new)
+     (mapcar #'(lambda (x y) (send x :angle-vector y)) *ri-arms* avs-new)
+     )
+   (send-super :robot-interface-simulation-callback)
+   ))
 
 ;; See (demo) function in setup.l
 (defun move-tray-to-sink ()
   (connect-dishes-to-tray :assoc)
-  (move-to-spot (send *room610* :spot-tray-spot) :no-wait t) ;; (move-to-table-side)
-  (move-arm 0 #f(0 0 0 0 0 0) 1000)
-  (send *ri* :move-to-wait)
+  ;; Move to tray
+  (set-arm-av 0 #f(50 50 50 50 50 50))
+  (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
+  ;; Pick tray
   (while (not (pick-tray-table-side)))
-  (move-to-spot (send *room610* :spot-sink-spot) :no-wait t) ;; (move-to-sink)
-  (send *ri* :move-to-wait)
+  ;; Move to sink
+  (set-arm-av 0 #f(0 0 0 0 0 0))
+  (move-to-spot (send *room610* :spot-sink-spot)) ;; (move-to-sink)
+  ;; Place tray
   (place-tray-sink)
+  ;; Move
+  (set-arm-av 0 #f(0 0 0 0 0 0))
   (send *ri* :go-pos-unsafe 0 0 -90)
   (connect-dishes-to-tray :dissoc)
   )
