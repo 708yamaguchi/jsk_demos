@@ -47,6 +47,10 @@
   (setq *avs-goal* (make-list 5 :initial-element #f(0 0 0 0 0 0)))
 
   ;; Show objects on IRT Viewer and Kinematics Simulator
+  (dotimes (i 5)
+    ;; Remove 610 walls for visibility
+    (send *room610* :remove-object
+	  (format nil "room610-external-wall-~A" i)))
   (setq *all-objects* (append (send *room610* :objects)
                               (list *closet* *coffee-cup* *microwave*)
                               *dishes* *arms*))
@@ -196,7 +200,7 @@
   (connect-dishes-to-tray :dissoc)
   )
 
-(defun move-cup-to-sink ()
+(defun move-cup-to-shelf ()
   ;; Move
   (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
   ;; Reach
@@ -209,7 +213,7 @@
   ;; Move
   (move-to-spot *microwave-spot*)
   ;; Place
-  (send *pr2* :rarm :move-end-pos #f(0 200 80) :world)
+  (send *pr2* :rarm :move-end-pos #f(200 200 80) :world)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   ;; Release
@@ -220,6 +224,14 @@
   (pr2-pick-tray-pose)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
+  )
+
+(defun move-arm-to-shelf ()
+  (move-to-spot *arms-spot*) ;; (move-to-table-side)
+  (pick-arm 1)
+  (move-to-spot *microwave-spot*) ;; (move-to-sink)
+  (send *ri* :go-pos -0.1 0.25 0)
+  (place-arm 1)
   )
 
 (defun demo-dish-wash ()
