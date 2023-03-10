@@ -32,10 +32,12 @@
   (setq *dishes* nil)
   (dotimes (i 10)
     (let ((dish (room73b2-dish)))
-      (send dish :translate (float-vector 0 0 (* i 30)) :local)
-      (send dish :translate #f(5050 0 720) :world)
+      (send dish :translate (float-vector 0 0 (* i -30)) :local)
+      (send dish :translate #f(5050 0 990) :world)
       (send dish :name (format nil "dish~A" i))
       (setq *dishes* (append *dishes* (list dish)))))
+  (setq *dishes-on-tray* *dishes*)
+  (setq *dishes-on-sink* nil)
   ;; Robot Arm object
   (setq *arms* nil)
   (dotimes (i 5)
@@ -68,6 +70,8 @@
     (let ((ri-dish (find dish (send *ri* :objects)
                          :test #'compare-name)))
       (setq *ri-dishes* (append *ri-dishes* (list ri-dish)))))
+  (setq *ri-dishes-on-tray* *ri-dishes*)
+  (setq *ri-dishes-on-sink* nil)
   (setq *ri-arms* nil)
   (dolist (arm *arms*)
     (let ((ri-arm (find arm (send *ri* :objects)
@@ -141,6 +145,7 @@
   (move-to-spot *arms-spot*) ;; (move-to-table-side)
   (pick-arm 0)
   (move-to-spot (send *room610* :spot-sink-spot)) ;; (move-to-sink)
+  (send *pr2* :move-to (make-coords :pos #f(0 400 0)) :local)
   (send *ri* :go-pos 0 0.4 0)
   (place-arm 0)
   )
@@ -149,6 +154,42 @@
   (let ((avs-arm (send-all *arms* :angle-vector)))
     (setq *avs-goal* avs-arm)
     (setf (elt *avs-goal* arm-num) av-target)))
+
+(defun reach-dish-by-arm ()
+  (let* ((arm-index 0)
+	 (target-arm (elt *arms* arm-index))
+	 (dummy-arm-for-ik (copy-object target-arm))
+	 (target-coords
+	  (send (send (car *dishes-on-tray*) :copy-worldcoords)
+		:rotate pi/2 :y)))
+    (set-arm-av arm-index
+		(send dummy-arm-for-ik :rarm :inverse-kinematics
+		      target-coords :rotation-axis :x))
+    ))
+
+(defun move-dish-to-sink-by-arm ()
+  (let* ((arm-index 0)
+	 (target-arm (elt *arms* arm-index))
+	 (dummy-arm-for-ik (copy-object target-arm))
+	 (ri-target-arm (elt *ri-arms* arm-index)))
+    (send (send target-arm :rarm :end-coords) :assoc (car *dishes-on-tray*))
+    (send (send ri-target-arm :rarm :end-coords) :assoc (car *ri-dishes-on-tray*))
+    (set-arm-av arm-index
+		(send dummy-arm-for-ik :rarm
+		      :move-end-pos (v+ #f(0 400 -400)
+					(scale (* 2 (length *dishes-on-sink*)) #f(0 0 30)))
+		      :world :rotation-axis :x))))
+
+(defun release-dish-by-arm ()
+  (let* ((arm-index 0)
+	 (target-arm (elt *arms* arm-index))
+	 (ri-target-arm (elt *ri-arms* arm-index)))
+    (send (send target-arm :rarm :end-coords) :dissoc (car *dishes-on-tray*))
+    (send (send ri-target-arm :rarm :end-coords) :dissoc (car *ri-dishes-on-tray*)))
+  (setq *dishes-on-sink* (append (list (car *dishes-on-tray*)) *dishes-on-sink*))
+  (setq *dishes-on-tray* (cdr *dishes-on-tray*))
+  (setq *ri-dishes-on-sink* (append (list (car *ri-dishes-on-tray*)) *ri-dishes-on-sink*))
+  (setq *ri-dishes-on-tray* (cdr *ri-dishes-on-tray*)))
 
 (defmethod robot-move-base-interface
   (:robot-interface-simulation-callback
@@ -170,12 +211,14 @@
    (let* ((avs-orig (send-all *arms* :angle-vector))
           (avs-goal *avs-goal*)
           (avs-diff (mapcar #'v- *avs-goal* avs-orig))
+	  ;; TODO: round value. e.g. If diff < 0.01, 0. Else, 5.0.
           ;; (avs-diff-round (mapcar #'(lambda (x) (concatenate float-vector ;; Set each elements more than 5
-          ;;                                                    (mapcar #'(lambda (y) (max y 5)) (concatenate cons x))))
+          ;;                                                    (mapcar #'(lambda (y) (max y 5)) (copncatenate cons x))))
           ;;                         avs-diff))
-          (avs-plus (mapcar #'(lambda (x) (scale 0.05 x)) avs-diff))
+          (avs-plus (mapcar #'(lambda (x) (scale 0.01 x)) avs-diff))
           (avs-new (mapcar #'v+ avs-orig avs-plus)))
-     (mapcar #'(lambda (x y) (send x :angle-vector y)) *arms* avs-new)
+     ;; Do not update IRT Viewer
+     ;; (mapcar #'(lambda (x y) (send x :angle-vector y)) *arms* avs-new)
      (mapcar #'(lambda (x y) (send x :angle-vector y)) *ri-arms* avs-new)
      )
    (send-super :robot-interface-simulation-callback)
@@ -185,38 +228,42 @@
 (defun move-tray-to-sink ()
   (connect-dishes-to-tray :assoc)
   ;; Move to tray
-  (set-arm-av 0 #f(50 50 50 50 50 50))
   (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
   ;; Pick tray
   (while (not (pick-tray-table-side)))
   ;; Move to sink
-  (set-arm-av 0 #f(0 0 0 0 0 0))
   (move-to-spot (send *room610* :spot-sink-spot)) ;; (move-to-sink)
   ;; Place tray
   (place-tray-sink)
   ;; Move
-  (set-arm-av 0 #f(0 0 0 0 0 0))
+  (send *pr2* :move-to (make-coords :pos #f(0 0 0) :rpy (float-vector 0 0 -pi/2)) :local)
   (send *ri* :go-pos-unsafe 0 0 -90)
   (connect-dishes-to-tray :dissoc)
   )
 
 (defun move-cup-to-shelf ()
   ;; Move
+  (reach-dish-by-arm)
   (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
   ;; Reach
+  (move-dish-to-sink-by-arm)
   (send *pr2* :rarm :inverse-kinematics *coffee-cup* :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   ;; Grasp
+  (release-dish-by-arm)
   (send *ri* :start-grasp :rarm :wait t :objects (list *ri-coffee-cup*))
   (send (send *pr2* :rarm :end-coords) :assoc *coffee-cup*)
   ;; Move
+  (reach-dish-by-arm)
   (move-to-spot *microwave-spot*)
   ;; Place
+  (move-dish-to-sink-by-arm)
   (send *pr2* :rarm :move-end-pos #f(200 200 80) :world)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   ;; Release
+  (release-dish-by-arm)
   (send *ri* :stop-grasp :rarm :wait t)
   (send (send *pr2* :rarm :end-coords) :dissoc *coffee-cup*)
   ;; Reset pose
@@ -230,6 +277,7 @@
   (move-to-spot *arms-spot*) ;; (move-to-table-side)
   (pick-arm 1)
   (move-to-spot *microwave-spot*) ;; (move-to-sink)
+  (send *pr2* :move-to (make-coords :pos #f(-100 250 0)) :local)
   (send *ri* :go-pos -0.1 0.25 0)
   (place-arm 1)
   )
@@ -237,6 +285,7 @@
 (defun demo-dish-wash ()
   (move-tray-to-sink)
   (move-arm-to-sink)
+  (move-cup-to-shelf)
   )
 
 (setup-kinoko)
