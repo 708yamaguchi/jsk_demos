@@ -68,6 +68,7 @@
     (let ((ri-arm (find arm (send *ri* :objects)
                         :test #'compare-name)))
       (setq *ri-arms* (append *ri-arms* (list ri-arm)))))
+  (setq *ri-irtviewer* (*ri* . viewer))
 
   ;; Define spots
   (setq *arms-spot* (make-cascoords :pos #f(4500 -1500 0) :rpy (list pi/2 0 0)))
@@ -140,15 +141,26 @@
   )
 
 
-(defun move-arms (arm-num)
-  (send (elt *arms* arm-num) :init-pose)
-  (send (elt *ri-arms* arm-num) :init-pose))
+(defun move-arm (arm-num av-target &optional (time 3000))
+  (let* ((arm (elt *arms* arm-num))
+         (ri-arm (elt *ri-arms* arm-num))
+         (av-orig (send arm :angle-vector))
+         (av-diff (v- av-target av-orig))
+         (div 100))
+    (scale (/ 1.0 div) av-diff)
+    (dotimes (i div)
+      (let ((av-new (v+ av-orig (scale (* (+ i 1) (/ 1.0 div)) av-diff))))
+        (send arm :angle-vector av-new)
+        (send ri-arm :angle-vector av-new)
+        (send *irtviewer* :redraw)
+        (send *ri-irtviewer* :redraw)
+        (unix:usleep (* 1000 (/ time div)))))))
 
 ;; See (demo) function in setup.l
 (defun move-tray-to-sink ()
   (connect-dishes-to-tray :assoc)
   (move-to-spot (send *room610* :spot-tray-spot) :no-wait t) ;; (move-to-table-side)
-  (move-arms 0)
+  (move-arm 0 #f(0 0 0 0 0 0) 1000)
   (send *ri* :move-to-wait)
   (while (not (pick-tray-table-side)))
   (move-to-spot (send *room610* :spot-sink-spot) :no-wait t) ;; (move-to-sink)
