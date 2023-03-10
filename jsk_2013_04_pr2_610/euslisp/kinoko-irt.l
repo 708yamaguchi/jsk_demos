@@ -47,10 +47,27 @@
 
   ;; Show objects on IRT Viewer and Kinematics Simulator
   (setq *all-objects* (append (send *room610* :objects)
-			      (list *closet* *coffee-cup* *microwave*)
-			      *dishes* *arms*))
+                              (list *closet* *coffee-cup* *microwave*)
+                              *dishes* *arms*))
   (objects (append *all-objects* (list *pr2*)))
   (setq *ri* (instance pr2-interface :init :objects *all-objects*))
+
+  ;; Set objects in *ri*
+  (setq *ri-tray* (find *tray* (send *ri* :objects)
+                        :test #'compare-name))
+  (setq *ri-coffee-cup*
+        (find *coffee-cup* (send *ri* :objects)
+                             :test #'compare-name))
+  (setq *ri-dishes* nil)
+  (dolist (dish *dishes*)
+    (let ((ri-dish (find dish (send *ri* :objects)
+                         :test #'compare-name)))
+      (setq *ri-dishes* (append *ri-dishes* (list ri-dish)))))
+  (setq *ri-arms* nil)
+  (dolist (arm *arms*)
+    (let ((ri-arm (find arm (send *ri* :objects)
+                        :test #'compare-name)))
+      (setq *ri-arms* (append *ri-arms* (list ri-arm)))))
 
   ;; Define spots
   (setq *arms-spot* (make-cascoords :pos #f(4500 -1500 0) :rpy (list pi/2 0 0)))
@@ -61,18 +78,13 @@
   (string= (send a :name) (send b :name)))
 
 (defun connect-dishes-to-tray (command) ;; command is :assoc or :dissoc
-  (let ((ri-tray (find *tray* (send *ri* :objects)
-		       :test #'compare-name)))
-    (print ri-tray)
-    ;; Assoc/Dissoc objects in IRT viewer
-    (dolist (dish *dishes*)
-      (send *tray* command dish))
-    ;; Assoc/Dissoc objects in Kinematics Simulator
-    (dolist (dish *dishes*)
-      (send ri-tray command
-	    (find dish (send *ri* :objects)
-		  :test #'compare-name)))
-    ))
+  ;; Assoc/Dissoc objects in IRT viewer
+  (dolist (dish *dishes*)
+    (send *tray* command dish))
+  ;; Assoc/Dissoc objects in Kinematics Simulator
+  (dolist (dish *ri-dishes*)
+    (send *ri-tray* command dish))
+  )
 
 (defun move-to-arms ()
   (warn "move-to-arms~%")
@@ -86,9 +98,8 @@
 
 (defun pick-arm (arm-num) ;; arm-num is 0 ~ (len *arms*)
   (let* ((target-arm (elt *arms* arm-num))
-	 (arm-pose (send target-arm :copy-worldcoords))
-	 (ri-target-arm (find target-arm (send *ri* :objects)
-			      :test #'compare-name)))
+         (arm-pose (send target-arm :copy-worldcoords))
+         (ri-target-arm (elt *ri-arms* arm-num)))
     ;; Reach
     (send *pr2* :rarm :inverse-kinematics arm-pose :rotation-axis nil)
     (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
@@ -128,12 +139,20 @@
   (place-arm 0)
   )
 
+
+(defun move-arms (arm-num)
+  (send (elt *arms* arm-num) :init-pose)
+  (send (elt *ri-arms* arm-num) :init-pose))
+
 ;; See (demo) function in setup.l
 (defun move-tray-to-sink ()
   (connect-dishes-to-tray :assoc)
-  (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
+  (move-to-spot (send *room610* :spot-tray-spot) :no-wait t) ;; (move-to-table-side)
+  (move-arms 0)
+  (send *ri* :move-to-wait)
   (while (not (pick-tray-table-side)))
-  (move-to-spot (send *room610* :spot-sink-spot)) ;; (move-to-sink)
+  (move-to-spot (send *room610* :spot-sink-spot) :no-wait t) ;; (move-to-sink)
+  (send *ri* :move-to-wait)
   (place-tray-sink)
   (send *ri* :go-pos-unsafe 0 0 -90)
   (connect-dishes-to-tray :dissoc)
@@ -147,10 +166,8 @@
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   ;; Grasp
-  (let ((ri-coffee-cup (find *coffee-cup* (send *ri* :objects)
-			     :test #'compare-name)))
-  (send *ri* :start-grasp :rarm :wait t :objects (list ri-coffee-cup))
-  (send (send *pr2* :rarm :end-coords) :assoc *coffee-cup*))
+  (send *ri* :start-grasp :rarm :wait t :objects (list *ri-coffee-cup*))
+  (send (send *pr2* :rarm :end-coords) :assoc *coffee-cup*)
   ;; Move
   (move-to-spot *microwave-spot*)
   ;; Place
