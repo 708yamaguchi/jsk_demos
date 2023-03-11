@@ -10,6 +10,7 @@
 (load "package://euslisp/jskeus/eus/models/coffee-cup-cup-object.l")
 ;; Robot arm module
 (load "package://jsk_2013_04_pr2_610/euslisp/gen3_lite_gen3_lite_2f.l")
+(load "package://jsk_2013_04_pr2_610/euslisp/gen3_robotiq_2f_85.l")
 
 (defun setup-kinoko ()
   ;; Setup normal IRT environment
@@ -47,6 +48,14 @@
       (send arm :name (format nil "arm~A" i))
       (setq *arms* (append *arms* (list arm)))))
   (setq *avs-goal* (make-list 5 :initial-element #f(0.0 -16.0 75.0 0.0 -60.0 0.0)))
+  ;; Robot Arms (only for appearance)
+  (setq *arms-85* nil)
+  (dotimes (i 5)
+    (let ((arm (instance gen3_robotiq_2f_85-robot :init)))
+      (send arm :translate (float-vector (* i 150) 0 0) :local)
+      (send arm :translate #f(4700 -700 720) :world)
+      (send arm :name (format nil "arm-85~A" i))
+      (setq *arms-85* (append *arms-85* (list arm)))))
 
   ;; Show objects on IRT Viewer and Kinematics Simulator
   (dotimes (i 5)
@@ -55,7 +64,7 @@
           (format nil "room610-external-wall-~A" i)))
   (setq *all-objects* (append (send *room610* :objects)
                               (list *closet* *coffee-cup* *microwave*)
-                              *dishes* *arms*))
+                              *dishes* *arms* *arms-85*))
   (objects (append *all-objects* (list *pr2*)))
   (setq *ri* (instance pr2-interface :init :objects *all-objects*))
 
@@ -64,7 +73,10 @@
                         :test #'compare-name))
   (setq *ri-coffee-cup*
         (find *coffee-cup* (send *ri* :objects)
-                             :test #'compare-name))
+              :test #'compare-name))
+  (setq *ri-microwave*
+        (find *microwave* (send *ri* :objects)
+              :test #'compare-name))
   (setq *ri-dishes* nil)
   (dolist (dish *dishes*)
     (let ((ri-dish (find dish (send *ri* :objects)
@@ -249,14 +261,14 @@
   (connect-dishes-to-tray :dissoc)
   )
 
-(defun move-cup-to-shelf ()
+(defun move-cup-to-shelf (&optional (parallel-arm-move t))
   ;; Move
-  (pile-dish-1)
+  (when parallel-arm-move (pile-dish-1))
   (move-to-pos -1.0 0.3 0)
-  (pile-dish-2)
+  (when parallel-arm-move (pile-dish-2))
   (move-to-spot (send *room610* :spot-tray-spot)) ;; (move-to-table-side)
   ;; Reach
-  (pile-dish-3)
+  (when parallel-arm-move (pile-dish-3))
   (send *pr2* :rarm :inverse-kinematics *coffee-cup* :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
@@ -264,10 +276,10 @@
   (send *ri* :start-grasp :rarm :wait t :objects (list *ri-coffee-cup*))
   (send (send *pr2* :rarm :end-coords) :assoc *coffee-cup*)
   ;; Move
-  (pile-dish-1)
+  (when parallel-arm-move (pile-dish-1))
   (move-to-spot *microwave-spot*)
   ;; Place
-  (pile-dish-2)
+  (when parallel-arm-move (pile-dish-2))
   (send *pr2* :rarm :move-end-pos #f(200 200 80) :world)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
@@ -275,44 +287,90 @@
   (send *ri* :stop-grasp :rarm :wait t)
   (send (send *pr2* :rarm :end-coords) :dissoc *coffee-cup*)
   ;; Reset pose
-  (pile-dish-3)
+  (when parallel-arm-move (pile-dish-3))
   (send *pr2* :reset-pose)
   (pr2-pick-tray-pose)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
   )
 
-(defun move-arm-to-shelf ()
+(defun move-arm-to-shelf (&optional (parallel-arm-move t))
   ;; Move (move-to-table-side)
-  (pile-dish-1)
+  (when parallel-arm-move (pile-dish-1))
   (move-to-pos -0.5 1.0 0)
-  (pile-dish-2)
+  (when parallel-arm-move (pile-dish-2))
   (move-to-pos -0.5 0.5 0)
-  (pile-dish-3)
+  (when parallel-arm-move (pile-dish-3))
   (move-to-spot *arms-spot*)
   ;; Pick arm
-  (pile-dish-1)
+  (when parallel-arm-move (pile-dish-1))
   (pick-arm 1)
   ;; Move (move-to-sink)
-  (pile-dish-2)
+  (when parallel-arm-move (pile-dish-2))
   (move-to-pos 0.5 1.0 0)
-  (pile-dish-3)
+  (when parallel-arm-move (pile-dish-3))
   (move-to-pos 0.5 0.0 0)
-  (pile-dish-1)
+  (when parallel-arm-move (pile-dish-1))
   (move-to-spot *microwave-spot*)
   ;; Place arm
-  (pile-dish-2)
-  (move-to-pos 0.0 0.2 0)
+  (when parallel-arm-move (pile-dish-2))
+  (move-to-pos -0.1 0.2 0)
   (place-arm 1)
-  (pile-dish-3)
+  (when parallel-arm-move (pile-dish-3))
   )
 
+(defun use-microwave-1 () ;; Reach microwave handle
+  (let ((target-coords
+         (send (send *microwave* :copy-worldcoords) :translate #f(40 -200 340) :world)))
+    (send (elt *arms* 1) :angle-vector #f(-124.202 -7.57043 109.933 -148.396 -34.9508 0))
+    (set-arm-av 1
+                (send (elt *arms* 1) :rarm :inverse-kinematics target-coords :rotation-axis nil))))
+
+(defun use-microwave-2 () ;; Open microwave
+  ;; (set-arm-av 1 (send (elt *arms* 1) :angle-vector #f(-121.669 -46.6893 91.55 -145.421 -18.7229 0)))
+  (let ((target-coords
+         (send (send *microwave* :copy-worldcoords) :translate #f(40 -480 60) :world)))
+    (send (elt *arms* 1) :angle-vector #f(-124.202 -7.57043 109.933 -148.396 -34.9508 0))
+    (set-arm-av 1
+                (send (elt *arms* 1) :rarm :inverse-kinematics target-coords :rotation-axis nil)))
+  (send *microwave* :angle-vector #f(90 0))
+  (send *ri-microwave* :angle-vector #f(90 0)))
+
+;; From: #<coffee-cup-cup-object #X55ba5bea6070 coffee-cup-cup  6099.989 2199.981 799.997 / 3.142 4.514e-07 -1.995e-06>
+(defun use-microwave-3 () ;; Reach coffee cup
+  (let ((target-coords (send *coffee-cup* :copy-worldcoords)))
+    (set-arm-av 1
+                (send (elt *arms* 1) :rarm :inverse-kinematics target-coords :rotation-axis nil))))
+
+(defun use-microwave-4 () ;; Move coffee cup to microwave
+  (send (send (elt *arms* 1) :rarm :end-coords) :assoc *coffee-cup*)
+  (send (send (elt *ri-arms* 1) :rarm :end-coords) :assoc *ri-coffee-cup*)
+  (let ((target-coords
+         (send (send *microwave* :copy-worldcoords) :translate #f(0 -100 100) :world)))
+    (send (elt *arms* 1) :angle-vector #f(-124.202 -7.57043 109.933 -148.396 -34.9508 0))
+    (set-arm-av 1
+                (send (elt *arms* 1) :rarm :inverse-kinematics target-coords :rotation-axis nil))))
+
+(defun use-microwave-5 () ;; Reach microwave handle
+  (send (send (elt *arms* 1) :rarm :end-coords) :dissoc *coffee-cup*)
+  (send (send (elt *ri-arms* 1) :rarm :end-coords) :dissoc *ri-coffee-cup*)
+  (use-microwave-2))
+
+(defun use-microwave-6 () ;; Close microwave
+  (use-microwave-1)
+  (send *microwave* :angle-vector #f(0 0))
+  (send *ri-microwave* :angle-vector #f(0 0)))
+
 (defun demo-dish-wash ()
+  ;; Demo1
   (move-tray-to-sink)
   (move-arm-to-sink)
-  (move-cup-to-shelf)
-  (move-arm-to-shelf)
+  ;; Demo2
+  ;; If you use the following demo without arm module move, call with argument nil
+  (move-cup-to-shelf t)
+  (move-arm-to-shelf t)
+  ;; Demo3
   )
 
 (setup-kinoko)
-(demo-dish-wash)
+;; (demo-dish-wash)
