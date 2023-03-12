@@ -39,23 +39,30 @@
       (setq *dishes* (append *dishes* (list dish)))))
   (setq *dishes-on-tray* *dishes*)
   (setq *dishes-on-sink* nil)
+  ;; Cloth
+  (setq *cloth* (cloth))
+  (send *cloth* :move-to (send *laundry* :copy-worldcoords) :world)
+  (send *cloth* :translate #f(0 -400 800) :world)
+  (send *cloth* :rotate pi/2 :y :local)
+  (send *cloth* :rotate pi/2 :z :local)
   ;; Robot Arm object
   (setq *arms* nil)
-  (dotimes (i 5)
-    (let ((arm (instance gen3_lite_gen3_lite_2f-robot :init)))
-      (send arm :translate (float-vector (* i 150) 0 0) :local)
-      (send arm :translate #f(4700 -900 720) :world)
-      (send arm :name (format nil "arm~A" i))
-      (setq *arms* (append *arms* (list arm)))))
-  (setq *avs-goal* (make-list 5 :initial-element #f(0.0 -16.0 75.0 0.0 -60.0 0.0)))
-  ;; Robot Arms (only for appearance)
-  (setq *arms-85* nil)
-  (dotimes (i 5)
-    (let ((arm (instance gen3_robotiq_2f_85-robot :init)))
-      (send arm :translate (float-vector (* i 150) 0 0) :local)
-      (send arm :translate #f(4700 -700 720) :world)
-      (send arm :name (format nil "arm-85~A" i))
-      (setq *arms-85* (append *arms-85* (list arm)))))
+  (let ((arm-num 4))
+    (dotimes (i arm-num)
+      (let ((arm (instance gen3_lite_gen3_lite_2f-robot :init)))
+        (send arm :translate (float-vector (* i 200) 0 0) :local)
+        (send arm :translate #f(4700 -900 720) :world)
+        (send arm :name (format nil "arm~A" i))
+        (setq *arms* (append *arms* (list arm)))))
+    (setq *avs-goal* (make-list arm-num :initial-element #f(0.0 -16.0 75.0 0.0 -60.0 0.0)))
+    ;; Robot Arms (only for appearance)
+    (setq *arms-85* nil)
+    (dotimes (i arm-num)
+      (let ((arm (instance gen3_robotiq_2f_85-robot :init)))
+        (send arm :translate (float-vector (* i 200) 0 0) :local)
+        (send arm :translate #f(4700 -500 720) :world)
+        (send arm :name (format nil "arm-85~A" i))
+        (setq *arms-85* (append *arms-85* (list arm))))))
 
   ;; Show objects on IRT Viewer and Kinematics Simulator
   (dotimes (i 5)
@@ -63,7 +70,7 @@
     (send *room610* :remove-object
           (format nil "room610-external-wall-~A" i)))
   (setq *all-objects* (append (send *room610* :objects)
-                              (list *closet* *coffee-cup* *microwave*)
+                              (list *closet* *cloth* *coffee-cup* *microwave*)
                               *dishes* *arms* *arms-85*))
   (objects (append *all-objects* (list *pr2*)))
   (setq *ri* (instance pr2-interface :init :objects *all-objects*))
@@ -76,6 +83,12 @@
               :test #'compare-name))
   (setq *ri-microwave*
         (find *microwave* (send *ri* :objects)
+              :test #'compare-name))
+  (setq *ri-laundry*
+        (find *laundry* (send *ri* :objects)
+              :test #'compare-name))
+  (setq *ri-cloth*
+        (find *cloth* (send *ri* :objects)
               :test #'compare-name))
   (setq *ri-dishes* nil)
   (dolist (dish *dishes*)
@@ -95,6 +108,20 @@
   (setq *arms-spot* (make-cascoords :pos #f(4500 -1500 0) :rpy (list pi/2 0 0)))
   (setq *microwave-spot* (make-coords :pos #f(5700 1500 0) :rpy (list pi/2 0 0)))
   )
+
+(defun cloth ()
+  (let ((sleeve-1 (make-cube 180 150 3))
+         (sleeve-2 (make-cube 180 150 3))
+         (cloth-body (make-cube 400 700 3)))
+    (send sleeve-1 :translate #f(-220 230 0) :local)
+    (send sleeve-1 :rotate (/ pi 4) :z :local)
+    (send sleeve-2 :translate #f(220 230 0) :local)
+    (send sleeve-2 :rotate (/ -pi 4) :z :local)
+    (send cloth-body :assoc sleeve-1)
+    (send cloth-body :assoc sleeve-2)
+    (instance bodyset :init (make-cascoords)
+              :bodies (list cloth-body sleeve-1 sleeve-2)
+              :name "cloth")))
 
 (defun compare-name (a b)
   (string= (send a :name) (send b :name)))
@@ -360,6 +387,52 @@
   (use-microwave-1)
   (send *microwave* :angle-vector #f(0 0))
   (send *ri-microwave* :angle-vector #f(0 0)))
+
+(defun pick-laundry-cloth ()
+  ;; Move
+  (move-to-spot *laundry-spot*)
+  ;; Open laundry
+  (send *ri* :angle-vector
+        (send *pr2* :larm :inverse-kinematics
+              (send (car (send *laundry* :handle)) :copy-worldcoords) :rotation-axis nil)
+        3000)
+  (send *ri* :wait-interpolation)
+  (send *ri* :angle-vector
+        (send *pr2* :larm :move-end-pos #f(-200 -200 0) :world
+              :rotation-axis nil)
+        3000)
+  (send *ri* :wait-interpolation)
+  (send *laundry* :angle-vector #f(90 0))
+  (send *ri-laundry* :angle-vector #f(90 0))
+  ;; Pick cloth
+  (send *pr2* :rarm :inverse-kinematics
+        (send (send *cloth* :copy-worldcoords) :rotate pi/2 :y :local))
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :wait-interpolation)
+  (send (send *pr2* :rarm :end-coords) :assoc *cloth*)
+  (send *ri* :start-grasp :rarm :objects (list *ri-cloth*))
+  (send *pr2* :rarm :angle-vector
+        #f(-75.0 -20.0 -70.0 -120.0 -20.0 -30.0 180.0))
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :wait-interpolation)
+  ;; Close laundry
+  (send *ri* :angle-vector
+        (send *pr2* :larm :inverse-kinematics
+              (send (car (send *laundry* :handle)) :copy-worldcoords) :rotation-axis nil)
+        3000)
+  (send *ri* :wait-interpolation)
+  (send *ri* :angle-vector
+        (send *pr2* :larm :move-end-pos #f(-200 -200 0) :world
+              :rotation-axis nil)
+        3000)
+  (send *ri* :wait-interpolation)
+  (send *laundry* :angle-vector #f(0 0))
+  (send *ri-laundry* :angle-vector #f(0 0))
+  ;; Reset pose
+  (send *pr2* :reset-pose)
+  (pr2-pick-tray-pose)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
+  )
 
 (defun demo-dish-wash ()
   ;; Demo1
