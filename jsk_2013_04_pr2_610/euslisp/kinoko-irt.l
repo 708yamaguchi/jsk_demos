@@ -37,7 +37,7 @@
   (send *microwave* :translate #f(5400 2300 800) :world)
   ;; Dishes
   (setq *dishes* nil)
-  (dotimes (i 10)
+  (dotimes (i 5)
     (let ((dish (room73b2-dish)))
       (send dish :translate (float-vector 0 0 (* i -30)) :local)
       (send dish :translate #f(5050 0 990) :world)
@@ -455,7 +455,6 @@
               (send (car (send *laundry* :handle)) :copy-worldcoords) :rotation-axis nil)
         3000)
   (send *ri* :wait-interpolation)
-  (when parallel-arm-move (use-microwave-3))
   (send *ri* :angle-vector
         (send *pr2* :larm :move-end-pos #f(-200 -200 0) :world
               :rotation-axis nil)
@@ -464,20 +463,19 @@
   (send *laundry* :angle-vector #f(90 0))
   (send *ri-laundry* :angle-vector #f(90 0))
   ;; Pick cloth
-  (when parallel-arm-move (use-microwave-4))
+  (when parallel-arm-move (use-microwave-3))
   (send *pr2* :rarm :inverse-kinematics
         (send (send *cloth* :copy-worldcoords) :rotate pi/2 :y :local))
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   (send (send *pr2* :rarm :end-coords) :assoc *cloth*)
   (send *ri* :start-grasp :rarm :objects (list *ri-cloth*))
-  (when parallel-arm-move (use-microwave-5))
   (send *pr2* :rarm :angle-vector
         #f(-75.0 -20.0 -70.0 -120.0 -20.0 -30.0 180.0))
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   ;; Close laundry
-  (when parallel-arm-move (use-microwave-6))
+  (when parallel-arm-move (use-microwave-4))
   (send *ri* :angle-vector
         (send *pr2* :larm :inverse-kinematics
               (send (car (send *laundry* :handle)) :copy-worldcoords) :rotation-axis nil)
@@ -490,11 +488,13 @@
   (send *ri* :wait-interpolation)
   (send *laundry* :angle-vector #f(0 0))
   (send *ri-laundry* :angle-vector #f(0 0))
+  (when parallel-arm-move (use-microwave-5))
   ;; Reset pose
   (send *pr2* :reset-pose)
   (pr2-pick-tray-pose)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   ;; Move to arms and arm module picks cloth
+  (when parallel-arm-move (use-microwave-6))
   (move-to-spot *arms-spot*)
   (move-to-pos -0.3 -0.4 0)
   (send *pr2* :rarm :angle-vector
