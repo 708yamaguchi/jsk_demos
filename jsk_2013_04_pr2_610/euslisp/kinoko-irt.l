@@ -10,7 +10,7 @@
 (load "package://euslisp/jskeus/eus/models/coffee-cup-cup-object.l")
 ;; Robot arm module
 (load "package://jsk_2013_04_pr2_610/euslisp/gen3_lite_gen3_lite_2f.l")
-(load "package://jsk_2013_04_pr2_610/euslisp/gen3_robotiq_2f_85.l")
+;; (load "package://jsk_2013_04_pr2_610/euslisp/gen3_robotiq_2f_85.l")
 
 (defun setup-kinoko ()
   ;; Additional objects for kinoko IRT
@@ -381,6 +381,7 @@
   (when parallel-arm-move (pile-dish-3))
   )
 
+;; Before heating cup
 (defun use-microwave-1 () ;; Reach microwave handle
   (let ((target-coords
          (send (send *microwave* :copy-worldcoords) :translate #f(40 -200 340) :world)))
@@ -423,15 +424,38 @@
   (send *microwave* :angle-vector #f(0 0))
   (send *ri-microwave* :angle-vector #f(0 0)))
 
-(defun pick-laundry-cloth ()
+;; After heating cup
+(defun use-microwave-7 () ;; Reach microwave handle
+  (use-microwave-1))
+
+(defun use-microwave-8 () ;; Open microwave
+  (use-microwave-2))
+
+(defun use-microwave-9 () ;; Reach coffee cup
+  (use-microwave-3))
+
+(defun use-microwave-10 () ;; Move coffee cup ouside microwave
+  (send (send (elt *arms* 1) :rarm :end-coords) :assoc *coffee-cup*)
+  (send (send (elt *ri-arms* 1) :rarm :end-coords) :assoc *ri-coffee-cup*)
+  (let ((target-coords
+         (send (send *coffee-cup* :copy-worldcoords) :translate #f(200 -300 100) :world)))
+    (send (elt *arms* 1) :angle-vector #f(-124.202 -7.57043 109.933 -148.396 -34.9508 0))
+    (set-arm-av 1
+                (send (elt *arms* 1) :rarm :inverse-kinematics target-coords :rotation-axis nil))))
+
+
+(defun pick-laundry-cloth (&optional (parallel-arm-move t))
   ;; Move
+  (when parallel-arm-move (use-microwave-1))
   (move-to-spot *laundry-spot*)
   ;; Open laundry
+  (when parallel-arm-move (use-microwave-2))
   (send *ri* :angle-vector
         (send *pr2* :larm :inverse-kinematics
               (send (car (send *laundry* :handle)) :copy-worldcoords) :rotation-axis nil)
         3000)
   (send *ri* :wait-interpolation)
+  (when parallel-arm-move (use-microwave-3))
   (send *ri* :angle-vector
         (send *pr2* :larm :move-end-pos #f(-200 -200 0) :world
               :rotation-axis nil)
@@ -440,17 +464,20 @@
   (send *laundry* :angle-vector #f(90 0))
   (send *ri-laundry* :angle-vector #f(90 0))
   ;; Pick cloth
+  (when parallel-arm-move (use-microwave-4))
   (send *pr2* :rarm :inverse-kinematics
         (send (send *cloth* :copy-worldcoords) :rotate pi/2 :y :local))
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   (send (send *pr2* :rarm :end-coords) :assoc *cloth*)
   (send *ri* :start-grasp :rarm :objects (list *ri-cloth*))
+  (when parallel-arm-move (use-microwave-5))
   (send *pr2* :rarm :angle-vector
         #f(-75.0 -20.0 -70.0 -120.0 -20.0 -30.0 180.0))
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   ;; Close laundry
+  (when parallel-arm-move (use-microwave-6))
   (send *ri* :angle-vector
         (send *pr2* :larm :inverse-kinematics
               (send (car (send *laundry* :handle)) :copy-worldcoords) :rotation-axis nil)
@@ -470,14 +497,14 @@
   ;; Move to arms and arm module picks cloth
   (move-to-spot *arms-spot*)
   (move-to-pos -0.3 -0.4 0)
+  (send *pr2* :rarm :angle-vector
+	#f(-68.0085 8.7191 -87.2775 -95.8579 -181.564 -27.5931 -7.716))
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
+  (send *ri* :wait-interpolation)
   (let ((target-coords-2
          (send (send *cloth* :copy-worldcoords) :translate #f(-200 0 300) :world))
         (target-coords-3
          (send (send *cloth* :copy-worldcoords) :translate #f(200 0 300) :world)))
-    (send *pr2* :rarm :angle-vector
-	  #f(-68.0085 8.7191 -87.2775 -95.8579 -181.564 -27.5931 -7.716))
-    (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
-    (send *ri* :wait-interpolation)
     (let ((avs-arm (send-all *ri-arms* :angle-vector)))
       (setq *avs-goal* avs-arm)
       (setf (elt *avs-goal* 2)
@@ -536,29 +563,43 @@
               :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
+  (when parallel-arm-move (use-microwave-7))
   (send *pr2* :larm :move-end-pos #f(300 -300 0) :world :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   (send *closet* :angle-vector #f(90.0 90.0 0.0 0.0 0.0 0.0))
   (send *ri-closet* :angle-vector #f(90.0 90.0 0.0 0.0 0.0 0.0))
   ;; Set clothes
+  (when parallel-arm-move (use-microwave-8))
   (send *pr2* :rarm :inverse-kinematics
-	(send (send *closet* :copy-worldcoords) :translate #f(200 0 800) :world)
+	(send (send *closet* :copy-worldcoords) :translate #f(0 0 1000) :world)
 	:rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   (send (send *pr2* :rarm :end-coords) :dissoc *hanger*)
   (send *ri* :stop-grasp :rarm)
+  (when parallel-arm-move (use-microwave-9))
   (send *pr2* :reset-pose)
   (pr2-pick-tray-pose)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   ;; Closet closet
+  (when parallel-arm-move (use-microwave-10))
   (send *pr2* :larm :move-end-pos #f(-300 300 0) :world :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   (send *closet* :angle-vector #f(0.0 0.0 0.0 0.0 0.0 0.0))
   (send *ri-closet* :angle-vector #f(0.0 0.0 0.0 0.0 0.0 0.0))
   )
+
+(defun pick-cup-from-microwave ()
+  (move-to-spot (send (send *microwave-spot* :copy-worldcoords) :translate #f(0 -500 0) :world))
+  (send *pr2* :rarm :inverse-kinematics
+	(send *coffee-cup* :copy-worldcoords))
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
+  (send *ri* :wait-interpolation)
+  (send (send *pr2* :rarm :end-coords) :assoc *coffee-cup*)
+  (send *ri* :start-grasp :rarm :objects (list *coffee-cup*) :wait t)
+)
 
 (defun demo-dish-wash ()
   ;; Demo1
@@ -569,6 +610,8 @@
   (move-cup-to-shelf t)
   (move-arm-to-shelf t)
   ;; Demo3
+  (pick-laundry-cloth t)
+  (pick-cup-from-microwave)
   )
 
 (setup-kinoko)
