@@ -21,7 +21,14 @@
   (setq *closet* (square-600-closet))
   (send *closet* :translate #f(1700 2500 0) :world)
   (send *closet* :rotate -pi/2 :z :local)
-  ;; TODO: cloth and hanger
+  ;; Cloth
+  (setq *cloth* (cloth))
+  (send *cloth* :move-to (send *laundry* :copy-worldcoords) :world)
+  (send *cloth* :translate #f(0 -400 800) :world)
+  (send *cloth* :rotate pi/2 :y :local)
+  (send *cloth* :rotate pi/2 :z :local)
+  ;; Hanger
+  (setq *hanger* (hanger))
   ;; Coffee cup
   (setq *coffee-cup* (coffee-cup-cup))
   (send *coffee-cup* :translate #f(4700 100 720) :world)
@@ -39,12 +46,6 @@
       (setq *dishes* (append *dishes* (list dish)))))
   (setq *dishes-on-tray* *dishes*)
   (setq *dishes-on-sink* nil)
-  ;; Cloth
-  (setq *cloth* (cloth))
-  (send *cloth* :move-to (send *laundry* :copy-worldcoords) :world)
-  (send *cloth* :translate #f(0 -400 800) :world)
-  (send *cloth* :rotate pi/2 :y :local)
-  (send *cloth* :rotate pi/2 :z :local)
   ;; Robot Arm object
   (setq *arms* nil)
   (let ((arm-num 4))
@@ -87,6 +88,9 @@
   (setq *ri-laundry*
         (find *laundry* (send *ri* :objects)
               :test #'compare-name))
+  (setq *ri-closet*
+        (find *closet* (send *ri* :objects)
+              :test #'compare-name))
   (setq *ri-cloth*
         (find *cloth* (send *ri* :objects)
               :test #'compare-name))
@@ -122,6 +126,10 @@
     (instance bodyset :init (make-cascoords)
               :bodies (list cloth-body sleeve-1 sleeve-2)
               :name "cloth")))
+
+(defun hanger ()
+  nil
+  )
 
 (defun compare-name (a b)
   (string= (send a :name) (send b :name)))
@@ -432,6 +440,76 @@
   (send *pr2* :reset-pose)
   (pr2-pick-tray-pose)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
+  ;; Move to arms
+  (move-to-spot *arms-spot*)
+  ;; (move-to-pos 0 0.5 0)
+  (send *ri* :angle-vector
+        (send *pr2* :rarm :inverse-kinematics
+              (make-coords :pos #f(700 500 800)))
+        3000)
+  (send *ri* :wait-interpolation)
+  (let ((target-coords-2
+         (send (send *cloth* :copy-worldcoords) :translate #f(-200 0 400) :world))
+        (target-coords-3
+         (send (send *cloth* :copy-worldcoords) :translate #f(200 0 400) :world)))
+    (set-arm-av 2
+                (send (elt *arms* 2) :rarm :inverse-kinematics target-coords-2 :rotation-axis nil))
+    (set-arm-av 3
+                (send (elt *arms* 3) :rarm :inverse-kinematics target-coords-2 :rotation-axis nil)))
+  (send (send *pr2* :rarm :end-coords) :dissoc *cloth*)
+  (send *ri* :rarm :stop-grasp)
+  ;; Pick hanger
+  (move-to-pos 0.5 -0.5 -pi/2)
+  (let ((av-orig (send *pr2* :angle-vector)))
+    (send *ri* :angle-vector
+          (send *pr2* :rarm :inverse-kinematics
+                (send *hanger* :copy-worldcoords) :rotation-axis nil)
+          3000)
+    (send *ri* :wait-interpolation)
+    (send (send *pr2* :rarm :end-coords) :assoc *hanger*)
+    (send *ri* :start-grasp :rarm :objects (list *ri-hanger*))
+    (send *ri* :angle-vector (send *pr2* :angle-vector av-orig))
+    (send *ri* :wait-interpolation))
+  ;; Hang clothes
+  ;; TODO move arm modules
+  (move-to-pos 0.5 -0.5 pi/2)
+  (send *ri* :angle-vector
+        (send *pr2* :rarm :move-end-pos #f(0 0 -500) :rotation-axis nil)
+        3000)
+  (send *ri* :wait-interpolation)
+  (send *hanger* :assoc *cloth*)
+  (send *ri-hanger* :assoc *ri-cloth*)
+  ;; Move to closet
+  (move-to-spot (send (send *closet* :copy-worldcoords) :translate #f(0 -700 0) :world))
+  ;; Open closet
+  (send *ri* :angle-vector
+        (send *pr2* :larm :inverse-kinematics
+              (send (send *closet* :handle) :copy-worldcoords)
+              :rotation-axis nil)
+        3000)
+  (send *ri* :wait-interpolation)
+  (send *ri* :angle-vector
+        (send *pr2* :larm :move-end-pos #f(300 -300 0) :rotation-axis nil)
+        3000)
+  (send *ri* :wait-interpolation)
+  (send *closet* :angle-vector #f(90))
+  (send *ri-closet* :angle-vector #f(90))
+  ;; Set clothes
+  (send *ri* :angle-vector
+        (send *pr2* :larm :inverse-kinematics
+              (send (send *closet* :copy-worldcoords) :translate #f(0 0 800) :world)
+              :rotation-axis nil)
+        3000)
+  (send *ri* :wait-interpolation)
+  (send (send *pr2* :rarm :end-coords) :dissoc *hanger*)
+  (send *ri* :stop-grasp :rarm)
+  ;; Closet closet
+  (send *ri* :angle-vector
+        (send *pr2* :larm :move-end-pos #f(-300 300 0) :rotation-axis nil)
+        3000)
+  (send *ri* :wait-interpolation)
+  (send *closet* :angle-vector #f(0))
+  (send *ri-closet* :angle-vector #f(0))
   )
 
 (defun demo-dish-wash ()
