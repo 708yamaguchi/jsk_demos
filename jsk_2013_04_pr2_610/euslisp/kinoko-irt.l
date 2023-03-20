@@ -37,7 +37,7 @@
   (send *microwave* :translate #f(5400 2300 800) :world)
   ;; Dishes
   (setq *dishes* nil)
-  (dotimes (i 5)
+  (dotimes (i 10)
     (let ((dish (room73b2-dish)))
       (send dish :translate (float-vector 0 0 (* i -30)) :local)
       (send dish :translate #f(5050 0 990) :world)
@@ -125,8 +125,8 @@
 
 (defun cloth ()
   (let ((sleeve-1 (make-cube 180 150 3))
-         (sleeve-2 (make-cube 180 150 3))
-         (cloth-body (make-cube 400 700 3)))
+        (sleeve-2 (make-cube 180 150 3))
+        (cloth-body (make-cube 400 700 3)))
     (send sleeve-1 :translate #f(-220 230 0) :local)
     (send sleeve-1 :rotate (/ pi 4) :z :local)
     (send sleeve-2 :translate #f(220 230 0) :local)
@@ -140,9 +140,9 @@
 ;; Do not call twice (I dont know the reason, but error occurs)
 (defun hanger ()
   (let* ((hanger-body+ (make-prism '(#f(0 0 0) #f(-20 0 0) #f(-40 -20 0) #f(-280 -140 0)
-				       #f(-280 -150 0) #f(280 -150 0) #f(280 -140 0)
-				       #f(40 -20 0) #f(20 0 0))
-				   #f(0 0 20)))
+                                       #f(-280 -150 0) #f(280 -150 0) #f(280 -140 0)
+                                       #f(40 -20 0) #f(20 0 0))
+                                   #f(0 0 20)))
          (hanger-body- (send (make-prism '(#f(0 0 0) #f(-240 -120 0) #f(240 -120 0)) #f(0 0 20))
                              :translate #f(0 -20 0) :local))
          (hanger-body (body- hanger-body+ hanger-body-))
@@ -155,8 +155,8 @@
     (send hanger-body :assoc hanger-neck)
     (instance bodyset :init
               (make-cascoords)
-	      :bodies (list hanger-body hanger-neck)
-	      :name "hanger")))
+              :bodies (list hanger-body hanger-neck)
+              :name "hanger")))
 
 (defun compare-name (a b)
   (string= (send a :name) (send b :name)))
@@ -216,8 +216,8 @@
 (defun move-to-pos (x y d) ;; x[m], y[m], d[rad]
   (let ((coords (make-coords :pos (float-vector (* x 1000) (* y 1000) 0)
                              :rpy (float-vector d 0 0))))
-  (send *pr2* :move-to coords :local)
-  (send *ri* :move-to (send *pr2* :copy-worldcoords))))
+    (send *pr2* :move-to coords :local)
+    (send *ri* :move-to (send *pr2* :copy-worldcoords))))
 
 (defun move-arm-to-sink ()
   (move-to-spot *arms-spot*) ;; (move-to-table-side)
@@ -274,12 +274,12 @@
             (diff-pos (send orig-coords :difference-position current-goal-coords))
             (diff-rot (send orig-coords :difference-rotation current-goal-coords :rotation-axis :xy)))
        (cond
-         ((and (eps= (norm diff-pos) 0) (eps= (norm diff-rot) 0))
-          (setq current-goal-coords nil))
-         (t
-          (send robot :newcoords (midcoords (min (/ 10 (max (norm diff-pos) 10))
-                                                 (/ 0.02 (max (norm diff-rot) 0.02)))
-                                            orig-coords current-goal-coords))))
+        ((and (eps= (norm diff-pos) 0) (eps= (norm diff-rot) 0))
+         (setq current-goal-coords nil))
+        (t
+         (send robot :newcoords (midcoords (min (/ 10 (max (norm diff-pos) 10))
+                                                (/ 0.02 (max (norm diff-rot) 0.02)))
+                                           orig-coords current-goal-coords))))
        )) ;; when
 
    ;; Move arm
@@ -498,7 +498,7 @@
   (move-to-spot *arms-spot*)
   (move-to-pos -0.3 -0.4 0)
   (send *pr2* :rarm :angle-vector
-	#f(-68.0085 8.7191 -87.2775 -95.8579 -181.564 -27.5931 -7.716))
+        #f(-68.0085 8.7191 -87.2775 -95.8579 -181.564 -27.5931 -7.716))
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
   (let ((target-coords-2
@@ -508,16 +508,16 @@
     (let ((avs-arm (send-all *ri-arms* :angle-vector)))
       (setq *avs-goal* avs-arm)
       (setf (elt *avs-goal* 2)
-	    (send (elt *arms* 2) :rarm :inverse-kinematics target-coords-2 :rotation-axis nil))
+            (send (elt *arms* 2) :rarm :inverse-kinematics target-coords-2 :rotation-axis nil))
       (setf (elt *avs-goal* 3)
-	    (send (elt *arms* 3) :rarm :inverse-kinematics target-coords-3 :rotation-axis nil))))
+            (send (elt *arms* 3) :rarm :inverse-kinematics target-coords-3 :rotation-axis nil))))
   (send (send *pr2* :rarm :end-coords) :dissoc *cloth*)
   (send *ri* :stop-grasp :rarm)
   ;; Pick hanger
   (move-to-pos 2.0 0.8 -pi/2)
   (let ((av-orig (send *pr2* :angle-vector)))
     (send *pr2* :rarm :inverse-kinematics
-	  (send (send *hanger* :copy-worldcoords) :rotate pi/2 :y))
+          (send (send *hanger* :copy-worldcoords) :rotate pi/2 :y))
     (send *ri* :angle-vector
           (send *pr2* :angle-vector)
           3000)
@@ -532,24 +532,24 @@
   (let ((avs-arm (send-all *ri-arms* :angle-vector)))
     (setq *avs-goal* avs-arm)
     (setf (elt *avs-goal* 2)
-	  (send (elt *arms* 2) :rarm :move-end-pos #f(0 0 100) :world :rotation-axis nil))
+          (send (elt *arms* 2) :rarm :move-end-pos #f(0 0 100) :world :rotation-axis nil))
     (setf (elt *avs-goal* 3)
-	  (send (elt *arms* 3) :rarm :move-end-pos #f(0 0 100) :world :rotation-axis nil)))
+          (send (elt *arms* 3) :rarm :move-end-pos #f(0 0 100) :world :rotation-axis nil)))
   (send *pr2* :rarm :move-end-pos #f(0 0 -200) :world :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
   (send *ri* :wait-interpolation)
   (let ((avs-arm (send-all *ri-arms* :angle-vector)))
     (setq *avs-goal* avs-arm)
     (setf (elt *avs-goal* 2)
-	  (send (elt *arms* 2) :rarm :move-end-pos #f(0 0 -100) :world :rotation-axis nil))
+          (send (elt *arms* 2) :rarm :move-end-pos #f(0 0 -100) :world :rotation-axis nil))
     (setf (elt *avs-goal* 3)
-	  (send (elt *arms* 3) :rarm :move-end-pos #f(0 0 -100) :world :rotation-axis nil)))
+          (send (elt *arms* 3) :rarm :move-end-pos #f(0 0 -100) :world :rotation-axis nil)))
   (let ((target-coords (send *cloth* :copy-worldcoords)))
     (send target-coords :translate #f(0 0 400) :world)
     (send target-coords :rotate pi/2 :y)
     (send *pr2* :rarm :inverse-kinematics target-coords))
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
-  (send *ri* :wait-interpolation)  
+  (send *ri* :wait-interpolation)
   (send *hanger* :assoc *cloth*)
   (send *ri-hanger* :assoc *ri-cloth*)
   ;; Move to closet
@@ -559,8 +559,8 @@
     (move-to-spot target-spot))
   ;; Open closet
   (send *pr2* :larm :inverse-kinematics
-              (send (car (send *closet* :handle)) :copy-worldcoords)
-              :rotation-axis nil)
+        (send (car (send *closet* :handle)) :copy-worldcoords)
+        :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   (when parallel-arm-move (use-microwave-7))
@@ -572,8 +572,8 @@
   ;; Set clothes
   (when parallel-arm-move (use-microwave-8))
   (send *pr2* :rarm :inverse-kinematics
-	(send (send *closet* :copy-worldcoords) :translate #f(0 0 1000) :world)
-	:rotation-axis nil)
+        (send (send *closet* :copy-worldcoords) :translate #f(0 0 1000) :world)
+        :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   (send (send *pr2* :rarm :end-coords) :dissoc *hanger*)
@@ -582,6 +582,7 @@
   (send *pr2* :reset-pose)
   (pr2-pick-tray-pose)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
+  (send *ri* :wait-interpolation)
   ;; Closet closet
   (when parallel-arm-move (use-microwave-10))
   (send *pr2* :larm :move-end-pos #f(-300 300 0) :world :rotation-axis nil)
@@ -592,14 +593,22 @@
   )
 
 (defun pick-cup-from-microwave ()
-  (move-to-spot (send (send *microwave-spot* :copy-worldcoords) :translate #f(0 -500 0) :world))
+  (move-to-spot (send (send *microwave-spot* :copy-worldcoords) :translate #f(-300 -400 0) :world))
   (send *pr2* :rarm :inverse-kinematics
-	(send *coffee-cup* :copy-worldcoords))
+        (send *coffee-cup* :copy-worldcoords) :rotation-axis nil)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 3000)
   (send *ri* :wait-interpolation)
   (send (send *pr2* :rarm :end-coords) :assoc *coffee-cup*)
-  (send *ri* :start-grasp :rarm :objects (list *coffee-cup*) :wait t)
-)
+  (send *ri* :start-grasp :rarm :objects (list *ri-coffee-cup*) :wait t)
+  (send (send (*ri* . robot) :rarm :end-coords) :assoc *ri-coffee-cup*)
+  (send *pr2* :reset-pose)
+  (pr2-pick-tray-pose)
+  (send *ri* :angle-vector (send *pr2* :angle-vector) 5000)
+  (send *ri* :wait-interpolation)
+  ;;
+  (send (send *pr2* :rarm :end-coords) :dissoc *coffee-cup*)
+  (send *ri* :stop-grasp :rarm)
+  )
 
 (defun demo-dish-wash ()
   ;; Demo1
